@@ -13,6 +13,7 @@ for col in df.columns:
     if df[col].dtype in [np.float64, np.int64]:
         df[col] = df[col].fillna(df[col].median())
     else:
+        
         df[col] = df[col].fillna(df[col].mode()[0])
 
 print("\n✅ Missing values handled.")
