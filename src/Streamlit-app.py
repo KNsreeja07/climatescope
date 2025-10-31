@@ -1,904 +1,1317 @@
-# app_streamlit.py
+
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
+import plotly.express as px
+import plotly.graph_objects as go
+from datetime import datetime
+import warnings
+warnings.filterwarnings('ignore')
+
+# Import analytics module
 from Analyse import (
     load_data, descriptive_stats, country_aggregates, correlation_matrix,
-    monthly_trends, detect_extreme_events, region_comparisons
+    monthly_trends, detect_extreme_events, region_comparisons,
+    forecast_weather, forecast_multiple_metrics, generate_3d_surface, generate_insights,
+    perform_pca_analysis, perform_clustering, detect_anomalies, analyze_correlation_insights,generate_3d_chart
 )
 
-# st.set_page_config(page_title="🌦️ ClimateScope — Advanced Weather Dashboard", layout="wide")
-# --- Page Configuration ---
+# Page Configuration
 st.set_page_config(
-    page_title=" ClimateScope — Global Weather Insights",
+    page_title="🌍 ClimateScope — Global Weather Insights",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# --- Global Styling ---
+# Custom CSS Styling
 st.markdown("""
 <style>
-/* General app font and background */
-html, body, [class*="css"] {
-    font-family: 'Poppins', sans-serif;
-    font-size: 20px !important
-    background-color: #f5f6fa;
-}
- .stMarkdown h2, .stMarkdown h3, .stSubheader {
-        font-size: 26px !important;
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap');
+
+    html, body, [class*="css"] {
+        font-family: 'Poppins', sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    .main .block-container {
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+        background-color: rgba(255, 255, 255, 0.95);
+        border-radius: 20px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        max-width: 100%;
+    }
+
+    h1 {
+        color: #2d3748;
+        font-size: 48px !important;
         font-weight: 700 !important;
-        color: #f5f6fa !important;
-    }
-            
-/* Bold titles within write() */
-strong, b {
-        font-size: 20px !important;
-        color: #f5f6fa !important;
-    }          
-# /* Title and headers */
-# h1 {
-#     color: #f5f6fa;
-#     font-size: 38px !important;
-#     font-weight: 700 !important;
-# }
-# h2, h3 {
-#     color: #f5f6fa !important;
-# }
-
-/* Sidebar styling */
-section[data-testid="stSidebar"] {
-    background-color: #334155;
-    color: #f5f6fa;
-}
-.sidebar-content {
-    padding: 1rem;
-}
-
-/* Metric boxes */
-[data-testid="stMetricValue"] {
-    color: #f5f6fa !important;
-    font-weight: 600 !important;
-}
-
-/* Graph area */
-.plot-container {
-    background: white;
-    border-radius: 12px;
-    padding: 12px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-    margin-bottom: 30px;
-}
- /* Table text */
-    .dataframe {
-        font-size: 17px !important;
+        text-align: center;
+        margin-bottom: 2rem !important;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
     }
 
-    /* Axis and title text for plots */
-    .js-plotly-plot .plotly .main-svg text {
+    h2 {
+        color: #4a5568;
+        font-size: 32px !important;
+        font-weight: 600 !important;
+        margin-top: 2rem !important;
+        border-bottom: 3px solid #667eea;
+        padding-bottom: 0.5rem;
+    }
+
+    h3 {
+        color: #718096;
+        font-size: 24px !important;
+        font-weight: 600 !important;
+        margin-top: 1.5rem !important;
+    }
+
+    section[data-testid="stSidebar"] {
+        background: linear-gradient(180deg, #2d3748 0%, #1a202c 100%);
+        color: #f7fafc;
+    }
+
+    section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] {
+        color: #f7fafc;
+    }
+
+    section[data-testid="stSidebar"] .stSelectbox label,
+    section[data-testid="stSidebar"] .stMultiSelect label,
+    section[data-testid="stSidebar"] .stDateInput label {
+        color: #f7fafc !important;
+        font-weight: 600 !important;
         font-size: 16px !important;
     }
-/* Links and hover */
-a {
-    color: #f5f6fa !important;
-}
-a:hover {
-    text-decoration: underline !important;
-}
 
-/* Section separators */
-hr {
-    border: 1px solid #bf62d9;
-    margin: 2rem 0;
-}
-            
-            
+    [data-testid="stMetricValue"] {
+        font-size: 28px !important;
+        font-weight: 700 !important;
+        color: #667eea !important;
+    }
+
+    [data-testid="stMetricLabel"] {
+        font-size: 14px !important;
+        font-weight: 600 !important;
+        color: #4a5568 !important;
+    }
+
+    .dataframe {
+        font-size: 14px !important;
+        border-radius: 10px;
+        overflow: hidden;
+    }
+
+    .dataframe thead tr th {
+        background-color: #667eea !important;
+        color: white !important;
+        font-weight: 600 !important;
+        padding: 12px !important;
+    }
+
+    .stButton > button {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        font-weight: 600;
+        border-radius: 10px;
+        padding: 0.75rem 2rem;
+        border: none;
+        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    }
+
+    .stButton > button:hover {
+        box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        transform: translateY(-2px);
+    }
+
+    hr {
+        border: none;
+        height: 3px;
+        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+        margin: 2rem 0;
+    }
+
+    .streamlit-expanderHeader {
+        background-color: #f7fafc;
+        border-radius: 10px;
+        font-weight: 600;
+        color: #2d3748;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-
+# Data Path Configuration
 DATA_PATH = "../data/GlobalWeatherRepository_cleaned.csv"
 
+# Cache data loading
 @st.cache_data
 def get_data():
-    return load_data(DATA_PATH)
+    try:
+        return load_data(DATA_PATH)
+    except FileNotFoundError:
+        st.error(f"Data file not found at: {DATA_PATH}")
+        st.stop()
+    except Exception as e:
+        st.error(f"Error loading data: {str(e)}")
+        st.stop()
 
+# Load data
 df = get_data()
 
-
+# Sidebar Filters
 with st.sidebar:
-    st.markdown("## ClimateScope Dashboard")
-    
-
-    # --- Filters Section ---
-    st.header("Filters")
+    st.markdown("# FILTERS")
+   
 
     # Country Filter
+    st.markdown("### 🌍 Country Selection")
     countries = sorted(df["country"].dropna().unique().tolist())
-    selected_country = st.multiselect(
-        "🌍 Country",
+    selected_countries = st.multiselect(
+        "Select Countries",
         countries,
-        default=countries[:3],
-        help="Select one or more countries to filter the data."
+        default=countries[:5] if len(countries) > 5 else countries[:3],
+        help="Select one or more countries to analyze"
     )
 
-    # Filter the dataframe dynamically
-    dff = df[df["country"].isin(selected_country)] if selected_country else df
-
     # Date Range Filter
+    st.markdown("### 📅 Date Range")
     date_min, date_max = df["date"].min(), df["date"].max()
     selected_dates = st.date_input(
-        "📅 Date Range",
-        (date_min, date_max)
+        "Select Date Range",
+        (date_min, date_max),
+        min_value=date_min,
+        max_value=date_max
     )
 
     # Metric Group Filter
+    st.markdown("### 📈 Analysis Category")
     metric_group = st.selectbox(
-        "📈 Metric Group",
+        "Choose Analysis Type",
         [
-            "Temperature",
+            "Executive Summary",
+            "Temperature Analysis",
             "Humidity & Visibility",
-            "Wind",
+            "Wind Patterns",
             "Precipitation & Pressure",
             "Air Quality",
-            "Regional / Geographical",
-            "Extreme Events"
+            "Geographic Analysis",
+            "Extreme Events",
+            "Forecasting",
+            "Advanced Analytics"
         ],
-        help="Select which climate category to analyze."
+        help="Select which aspect of weather to analyze"
     )
 
-    # --- Dynamic Data Overview ---
-    st.markdown("### Data Overview")
-    st.info(f"**Countries selected:** {len(selected_country)} / {len(countries)}")
-    st.metric("Records in Selection", f"{dff.shape[0]:,}")
+   
+
+    st.markdown("---")
+
+    # Data Overview
+    st.markdown("### 📊 Data Overview")
+    dff = df.copy()
+    if selected_countries:
+        dff = dff[dff["country"].isin(selected_countries)]
+    if selected_dates and len(selected_dates) == 2:
+        start, end = selected_dates
+        dff = dff[(dff["date"] >= pd.to_datetime(start)) & (dff["date"] <= pd.to_datetime(end))]
+
+    st.metric("Total Records", f"{len(dff):,}")
+    st.metric("Countries Selected", f"{len(selected_countries)}")
+    st.metric("Date Range (Days)", f"{(dff['date'].max() - dff['date'].min()).days}")
+
+    st.markdown("---")
+    st.markdown("### ℹ️ How to Use Filters")
+    st.info("""
+1. **🌍 Country Selection:** Choose one or more countries to focus your analysis on.  
+2. **📅 Date Range:** Pick a custom time period to filter the dataset by date.  
+3. **📈 Analysis Category:** Select the type of weather insight you’d like to explore — from temperature and humidity to forecasting and advanced analytics.  
+4. **📊 Data Overview:** Review the number of records, selected countries, and date range before running deeper analyses.  
+
+💡 *Tip:* Use fewer countries and a shorter date range for faster dashboard performance.
+""")
 
 
+# Main Dashboard Header
+st.markdown("# 🌍 ClimateScope — Global Weather Dashboard")
 
 
-
-# --- Apply Filters ---
+# Apply filters to dataframe
 dff = df.copy()
-if selected_country:
-    dff = dff[dff["country"].isin(selected_country)]
-if selected_dates and isinstance(selected_dates, tuple):
+if selected_countries:
+    dff = dff[dff["country"].isin(selected_countries)]
+if selected_dates and len(selected_dates) == 2:
     start, end = selected_dates
     dff = dff[(dff["date"] >= pd.to_datetime(start)) & (dff["date"] <= pd.to_datetime(end))]
 
-
-# --- Dashboard Header ---
-st.title("ClimateScope — Global Weather Insights")
-
-# --- Analysis Section ---
-st.markdown("### 🔍 Analysis")
-
-# --- Dynamic Analysis Links ---
-if metric_group == "Temperature":
-    st.markdown("""
-    <div style='font-size:25px; line-height:1.8;'>
-        <ul>
-            <li><a href="#temp_trend" style="text-decoration:none;">📈 Temperature Trend Over Time</a></li>
-            <li><a href="#temp_distribution" style="text-decoration:none;">📊 Temperature Distribution</a></li>
-            <li><a href="#monthly_box" style="text-decoration:none;">📦 Monthly Temperature Distribution</a></li>
-        </ul>
-    </div>
-    """, unsafe_allow_html=True)
-
-elif metric_group == "Humidity & Visibility":
-    st.markdown("""
-    <div style='font-size:25px; line-height:1.8;'>
-        <ul>
-            <li><a href="#humid_temp" style="text-decoration:none;">💧 Humidity vs Temperature</a></li>
-            <li><a href="#visibility_trend" style="text-decoration:none;">🌫️ Visibility Trend Over Time</a></li>
-            <li><a href="#humid_corr" style="text-decoration:none;">🔗 Correlation Heatmap</a></li>
-        </ul>
-    </div>
-    """, unsafe_allow_html=True)
-
-elif metric_group == "Wind":
-    st.markdown("""
-    <div style='font-size:25px; line-height:1.8;'>
-        <ul>
-            <li><a href="#wind_trend" style="text-decoration:none;">🌬️ Wind Speed Trend</a></li>
-            <li><a href="#gust_precip" style="text-decoration:none;">🌪️ Gusts vs Precipitation</a></li>
-        </ul>
-    </div>
-    """, unsafe_allow_html=True)
-
-elif metric_group == "Precipitation & Pressure":
-    st.markdown("""
-    <div style='font-size:25px; line-height:1.8;'>
-        <ul>
-            <li><a href="#precip_monthly" style="text-decoration:none;">🌧️ Average Monthly Precipitation</a></li>
-            <li><a href="#pressure_trend" style="text-decoration:none;">📉 Pressure Trend Over Time</a></li>
-            <li><a href="#pressure_precip" style="text-decoration:none;">💨 Pressure vs Precipitation</a></li>
-        </ul>
-    </div>
-    """, unsafe_allow_html=True)
-
-elif metric_group == "Air Quality":
-    st.markdown("""
-    <div style='font-size:25px; line-height:1.8;'>
-        <ul>
-            <li><a href="#aq_trend" style="text-decoration:none;">🌫️ Air Quality Trend Over Time</a></li>
-            <li><a href="#aq_corr" style="text-decoration:none;">🔗 Pollutant Correlation Heatmap</a></li>
-            <li><a href="#aq_region" style="text-decoration:none;">🗺️ Regional AQI Comparison</a></li>
-        </ul>
-    </div>
-    """, unsafe_allow_html=True)
-
-elif metric_group == "Regional / Geographical":
-     st.markdown("""
-    <div style='font-size:25px; line-height:1.8;'>
-        <ul>
-            <li><a href="#country_summary" style="text-decoration:none;">📋 Country-Level Climate Summary</a></li>
-            <li><a href="#metric_map" style="text-decoration:none;">🗺️ Metric Map Visualization</a></li>
-        </ul>
-    </div>
-    """, unsafe_allow_html=True)
-     
+# Check if filtered data is empty
+if dff.empty:
+    st.warning("No data available for the selected filters. Please adjust your selection.")
+    st.stop()
 
 
-elif metric_group == "Extreme Events":
-    st.markdown("""
-    <div style='font-size:25px; line-height:1.8;'>
-        <ul>
-            <li><a href="#thresholds" style="text-decoration:none;">⚙️ Thresholds Used</a></li>
-            <li><a href="#extreme_table" style="text-decoration:none;">⚠️ Extreme Events Table</a></li>
-        </ul>
-    </div>
-    """, unsafe_allow_html=True)
+def make_interactive_config():
+    return {
+        'scrollZoom': True,
+        'displayModeBar': True,
+        'displaylogo': False,
+        'modeBarButtonsToAdd': ['pan2d', 'zoom2d', 'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d']
+    }
+# ==================== EXECUTIVE SUMMARY ====================
+if metric_group == "Executive Summary":
+    st.markdown("## 📊 Executive Summary")
 
-st.markdown("---")
+    # KPI Metrics Row 1
+    col1, col2, col3, col4, col5 = st.columns(5)
 
-# --- Metric Group Views ---
+    with col1:
+        if "temperature_celsius" in dff.columns:
+            avg_temp = dff["temperature_celsius"].mean()
+            st.metric("Avg Temperature", f"{avg_temp:.1f}°C")
 
-if metric_group == "Temperature":
-    st.subheader("🌡️ Temperature Metrics")
-    cols = ["temperature_celsius", "feels_like_celsius"]
-    available = [c for c in cols if c in dff.columns]
-    if not available:
-        st.warning("Temperature columns not found.")
+    with col2:
+        if "feels_like_celsius" in dff.columns:
+            avg_feels = dff["feels_like_celsius"].mean()
+            st.metric("Avg Feels Like", f"{avg_feels:.1f}°C")
+
+    with col3:
+        if "humidity" in dff.columns:
+            avg_humid = dff["humidity"].mean()
+            st.metric("Avg Humidity", f"{avg_humid:.1f}%")
+
+    with col4:
+        if "wind_kph" in dff.columns:
+            avg_wind = dff["wind_kph"].mean()
+            st.metric("Avg Wind Speed", f"{avg_wind:.1f} km/h")
+
+    with col5:
+        if "pressure_mb" in dff.columns:
+            avg_pressure = dff["pressure_mb"].mean()
+            st.metric("Avg Pressure", f"{avg_pressure:.1f} mb")
+
+    # KPI Metrics Row 2
+    col1, col2, col3, col4, col5 = st.columns(5)
+
+    with col1:
+        if "precip_mm" in dff.columns:
+            avg_precip = dff["precip_mm"].mean()
+            st.metric("Avg Precipitation", f"{avg_precip:.2f} mm")
+
+    with col2:
+        if "visibility_km" in dff.columns:
+            avg_vis = dff["visibility_km"].mean()
+            st.metric("Avg Visibility", f"{avg_vis:.1f} km")
+
+    with col3:
+        if "uv_index" in dff.columns:
+            avg_uv = dff["uv_index"].mean()
+            st.metric("Avg UV Index", f"{avg_uv:.1f}")
+
+    with col4:
+        if "cloud" in dff.columns:
+            avg_cloud = dff["cloud"].mean()
+            st.metric("Avg Cloud Cover", f"{avg_cloud:.1f}%")
+
+    with col5:
+        if "air_quality_us-epa-index" in dff.columns:
+            avg_aqi = dff["air_quality_us-epa-index"].mean()
+            st.metric("Avg AQI", f"{avg_aqi:.1f}")
+
+    st.markdown("---")
+
+    # Top Performers Section
+    st.markdown("## 🏆 Key Highlights")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("### 🔥 Hottest Countries")
+        if "country" in dff.columns and "temperature_celsius" in dff.columns:
+            top_hot = dff.groupby("country")["temperature_celsius"].mean().sort_values(ascending=False).head(5)
+            for idx, (country, temp) in enumerate(top_hot.items(), 1):
+                st.markdown(f"**{idx}. {country}** — {temp:.2f}°C")
+
+    with col2:
+        st.markdown("### ❄️ Coldest Countries")
+        if "country" in dff.columns and "temperature_celsius" in dff.columns:
+            top_cold = dff.groupby("country")["temperature_celsius"].mean().sort_values().head(5)
+            for idx, (country, temp) in enumerate(top_cold.items(), 1):
+                st.markdown(f"**{idx}. {country}** — {temp:.2f}°C")
+
+    st.markdown("---")
+
+    # 3D Visualization (moved from Geographic Analysis)
+    st.markdown("## 🎲 3D Weather Visualization")
+
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        x_metric = st.selectbox("X-Axis", ["humidity", "temperature_celsius", "wind_kph", "pressure_mb"], key="x_exec")
+    with col2:
+        y_metric = st.selectbox("Y-Axis", ["temperature_celsius", "humidity", "precip_mm", "visibility_km"], key="y_exec")
+    with col3:
+        z_metric = st.selectbox("Z-Axis", ["pressure_mb", "wind_kph", "humidity", "temperature_celsius"], key="z_exec")
+    with col4:
+        chart_type = st.selectbox("Chart Type", ["Scatter 3D", "Surface", "Line 3D", "Mesh 3D", "Bubble 3D"], key="chart_type_exec")
+
+    fig_3d = generate_3d_chart(dff, x_metric=x_metric, y_metric=y_metric, z_metric=z_metric, chart_type=chart_type)
+    if fig_3d:
+        st.plotly_chart(fig_3d, use_container_width=True, config=make_interactive_config())
     else:
-        # --- Temperature Trend ---
-        st.markdown('<a name="temp_trend"></a>', unsafe_allow_html=True)
-        
-        fig, ax = plt.subplots(figsize=(8, 4))
-        for c in available:
-            ax.plot(dff["date"], dff[c], label=c, linewidth=2)
-        ax.legend(fontsize=12)
-        ax.set_xlabel("Date", fontsize=14)
-        ax.set_ylabel("Temperature (°C)", fontsize=14)
-        ax.set_title("Temperature Trend Over Time", fontsize=15, fontweight='bold')
-        st.pyplot(fig)
+        st.warning("3D visualization unavailable for selected metrics.")
 
-        # --- Temperature Distribution ---
-        st.markdown('<a name="temp_distribution"></a>', unsafe_allow_html=True)
-       
-        fig2, ax2 = plt.subplots(figsize=(8, 4))
-        sns.histplot(dff["temperature_celsius"], kde=True, ax=ax2, color="coral")
-        ax2.set_xlabel("Temperature (°C)", fontsize=13)
-        ax2.set_ylabel("Frequency", fontsize=13)
-        ax2.set_title("Distribution of Temperature", fontsize=15, fontweight='bold')
-        st.pyplot(fig2)
+    st.markdown("---")
 
-        # --- Monthly Temperature Boxplot ---
-        st.markdown('<a name="monthly_box"></a>', unsafe_allow_html=True)
-        dff["month"] = dff["date"].dt.month
-        fig3, ax3 = plt.subplots(figsize=(8, 4))
-        sns.boxplot(
-            x="month",
-            y="temperature_celsius",
-            hue="month",
-            data=dff,
-            palette="coolwarm",
-            legend=False,
-            ax=ax3
-        )
-        ax3.set_title("Monthly Temperature Distribution", fontsize=15, fontweight='bold')
-        ax3.set_xlabel("Month", fontsize=13)
-        ax3.set_ylabel("Temperature (°C)", fontsize=13)
-        st.pyplot(fig3)
+    # AI-Generated Insights
+    st.markdown("## 🧠 Insights")
+    insights = generate_insights(dff)
 
-# if metric_group == "Temperature":
-#     st.subheader("🌡️ Temperature Metrics")
-#     cols = ["temperature_celsius", "feels_like_celsius"]
-#     available = [c for c in cols if c in dff.columns]
-#     if not available:
-#         st.warning("Temperature columns not found.")
-#     else:
-#         # --- Temperature Trend ---
-#         st.markdown('<a name="temp_trend"></a>', unsafe_allow_html=True)
-#         st.write("**Temperature Trend Over Time**")
-#         fig, ax = plt.subplots(figsize=(10,4))
-#         for c in available:
-#             ax.plot(dff["date"], dff[c], label=c)
-#         ax.legend(); ax.set_xlabel("Date"); ax.set_ylabel("°C")
-#         st.pyplot(fig)
+    cols = st.columns(2)
+    for idx, (category, insight) in enumerate(insights.items()):
+        with cols[idx % 2]:
+            with st.expander(f"💡 {category} Insights", expanded=True):
+                st.write(insight)
 
-#         # --- Temperature Distribution ---
-#         st.markdown('<a name="temp_distribution"></a>', unsafe_allow_html=True)
-#         st.write("**Temperature Distribution**")
-#         fig2, ax2 = plt.subplots(figsize=(8,4))
-#         sns.histplot(dff["temperature_celsius"], kde=True, ax=ax2, color="coral")
-#         st.pyplot(fig2)
+    st.markdown("---")
 
-#         # --- Monthly Temperature Boxplot ---
-#         st.markdown('<a name="monthly_box"></a>', unsafe_allow_html=True)
-#         dff["month"] = dff["date"].dt.month
-#         fig3, ax3 = plt.subplots(figsize=(8,4))
-#         sns.boxplot(
-#             x="month",
-#             y="temperature_celsius",
-#             hue="month",
-#             data=dff,
-#             palette="coolwarm",
-#             legend=False,
-#             ax=ax3
-#         )
-#         ax3.set_title("Monthly Temperature Distribution")
-#         st.pyplot(fig3)
+    # Quick Overview Charts
+    st.markdown("## 📈 Quick Overview Charts")
 
+    col1, col2 = st.columns(2)
+
+    with col1:
+        if "temperature_celsius" in dff.columns and "date" in dff.columns:
+            daily_temp = dff.groupby("date")["temperature_celsius"].mean().reset_index()
+            fig = px.line(daily_temp, x="date", y="temperature_celsius",
+                         title="Temperature Trend", labels={"temperature_celsius": "Temperature (°C)", "date": "Date"})
+            fig.update_traces(line_color='#FF6B6B', line_width=2)
+            fig.update_layout(height=400)
+            st.plotly_chart(fig, use_container_width=True)
+
+    with col2:
+        if "humidity" in dff.columns and "date" in dff.columns:
+            daily_humid = dff.groupby("date")["humidity"].mean().reset_index()
+            fig = px.line(daily_humid, x="date", y="humidity",
+                         title="Humidity Trend", labels={"humidity": "Humidity (%)", "date": "Date"})
+            fig.update_traces(line_color='#4ECDC4', line_width=2)
+            fig.update_layout(height=400)
+            st.plotly_chart(fig, use_container_width=True)
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        if "wind_kph" in dff.columns and "date" in dff.columns:
+            daily_wind = dff.groupby("date")["wind_kph"].mean().reset_index()
+            fig = px.area(daily_wind, x="date", y="wind_kph",
+                         title="Wind Speed Trend", labels={"wind_kph": "Wind Speed (km/h)", "date": "Date"})
+            fig.update_traces(line_color='#3498db', fillcolor='rgba(52, 152, 219, 0.3)')
+            fig.update_layout(height=400)
+            st.plotly_chart(fig, use_container_width=True)
+
+    with col2:
+        if "precip_mm" in dff.columns and "date" in dff.columns:
+            daily_precip = dff.groupby("date")["precip_mm"].mean().reset_index()
+            fig = px.bar(daily_precip, x="date", y="precip_mm",
+                        title="Precipitation Pattern", labels={"precip_mm": "Precipitation (mm)", "date": "Date"})
+            fig.update_traces(marker_color='#27ae60')
+            fig.update_layout(height=400)
+            st.plotly_chart(fig, use_container_width=True)
+
+# ==================== TEMPERATURE ANALYSIS ====================
+elif metric_group == "Temperature Analysis":
+    st.markdown("## 🌡️ Temperature Analysis")
+
+    if "temperature_celsius" in dff.columns:
+        # Temperature Statistics
+        col1, col2, col3, col4, col5 = st.columns(5)
+        temp_mean = dff["temperature_celsius"].mean()
+        temp_median = dff["temperature_celsius"].median()
+        temp_std = dff["temperature_celsius"].std()
+        temp_max = dff["temperature_celsius"].max()
+        temp_min = dff["temperature_celsius"].min()
+
+        with col1:
+            st.metric("Mean Temperature", f"{temp_mean:.2f}°C")
+        with col2:
+            st.metric("Median Temperature", f"{temp_median:.2f}°C")
+        with col3:
+            st.metric("Std Deviation", f"{temp_std:.2f}°C")
+        with col4:
+            st.metric("Max Temperature", f"{temp_max:.2f}°C")
+        with col5:
+            st.metric("Min Temperature", f"{temp_min:.2f}°C")
+
+        st.markdown("---")
+
+        # Temperature Distribution
+        st.markdown("### 📊 Temperature Distribution (KDE)")
+        fig = px.histogram(dff, x="temperature_celsius", nbins=50, marginal="box",
+                         title="Temperature Distribution with Box Plot",
+                         labels={"temperature_celsius": "Temperature (°C)"})
+        fig.update_traces(marker_color='#FF6B6B')
+        fig.update_layout(height=500)
+        st.plotly_chart(fig, use_container_width=True)
+
+        # Insights Section
+        st.markdown("### 💡 Temperature Insights")
+        variability = "high" if temp_std > 15 else "moderate" if temp_std > 8 else "low"
+        st.info(f"""
+        - **Average Temperature:** {temp_mean:.2f}°C
+        - **Temperature Range:** {temp_min:.2f}°C to {temp_max:.2f}°C ({temp_max - temp_min:.2f}°C spread)
+        - **Variability:** {variability.title()} (σ = {temp_std:.2f}°C)
+        - **Distribution:** {'Positively skewed' if dff['temperature_celsius'].skew() > 0 else 'Negatively skewed' if dff['temperature_celsius'].skew() < 0 else 'Normally distributed'}
+        """)
+
+        st.markdown("---")
+
+        # Temperature Trend
+        st.markdown("### 📈 Temperature Trend Over Time")
+        daily_temp = dff.groupby("date")[["temperature_celsius", "feels_like_celsius"]].mean().reset_index()
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=daily_temp["date"], y=daily_temp["temperature_celsius"],
+                                mode='lines', name='Actual Temperature', line=dict(color='red', width=2)))
+        if "feels_like_celsius" in daily_temp.columns:
+            fig.add_trace(go.Scatter(x=daily_temp["date"], y=daily_temp["feels_like_celsius"],
+                                    mode='lines', name='Feels Like', line=dict(color='orange', width=2)))
+        fig.update_layout(height=500, hovermode='x unified', xaxis_title="Date", yaxis_title="Temperature (°C)")
+        st.plotly_chart(fig, use_container_width=True)
+
+        st.markdown("---")
+
+        # Country Comparison - Top 5 and Bottom 5
+        if "country" in dff.columns:
+            st.markdown("### 🌍 Country Temperature Comparison")
+
+            country_temps = dff.groupby("country")["temperature_celsius"].mean().sort_values(ascending=False)
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                st.markdown("#### 🔥 Top 5 Hottest Countries")
+                top5 = country_temps.head(5).reset_index()
+                fig = px.bar(top5, x="country", y="temperature_celsius",
+                           title="Top 5 Hottest Countries",
+                           labels={"temperature_celsius": "Avg Temp (°C)", "country": "Country"},
+                           color="temperature_celsius", color_continuous_scale='Reds')
+                fig.update_layout(height=400, showlegend=False)
+                st.plotly_chart(fig, use_container_width=True)
+
+            with col2:
+                st.markdown("#### ❄️ Bottom 5 Coldest Countries")
+                bottom5 = country_temps.tail(5).reset_index()
+                fig = px.bar(bottom5, x="country", y="temperature_celsius",
+                           title="Bottom 5 Coldest Countries",
+                           labels={"temperature_celsius": "Avg Temp (°C)", "country": "Country"},
+                           color="temperature_celsius", color_continuous_scale='Blues')
+                fig.update_layout(height=400, showlegend=False)
+                st.plotly_chart(fig, use_container_width=True)
+
+            # Full Comparison
+            st.markdown("#### 📊 All Countries Comparison")
+            comp, fig = region_comparisons(dff, metric="temperature_celsius")
+            if fig:
+                fig.update_layout(height=600)
+                st.plotly_chart(fig, use_container_width=True)
+
+    else:
+        st.warning("Temperature data not available in the selected dataset.")
+
+# ==================== HUMIDITY & VISIBILITY ====================
 elif metric_group == "Humidity & Visibility":
-    st.subheader("💧 Humidity & Visibility")
+    st.markdown("## 💧 Humidity & Visibility Analysis")
 
-    if {"humidity","visibility_km","temperature_celsius"}.issubset(dff.columns):
-        # --- Humidity vs Temperature ---
-        st.markdown('<a name="humid_temp"></a>', unsafe_allow_html=True)
-        # st.write("**Humidity vs Temperature**")
-        fig, ax = plt.subplots(figsize=(8,4))
-        ax.set_title("Humidity Vs Temperature", fontsize=15, fontweight='bold')
-        sns.scatterplot(data=dff, x="humidity", y="temperature_celsius", alpha=0.5, color="teal")
-        st.pyplot(fig)
+    col1, col2 = st.columns(2)
 
-        # --- Visibility Trend ---
-        st.markdown('<a name="visibility_trend"></a>', unsafe_allow_html=True)
-        # st.write("**Visibility Trend Over Time**")
-        fig2, ax2 = plt.subplots(figsize=(8,4))
-        ax2.plot(dff["date"], dff["visibility_km"], color="orange")
-        ax2.set_ylabel("Visibility (km)")
-        ax2.set_title("Visibility Trend Over Time", fontsize=15, fontweight='bold')
-        st.pyplot(fig2)
+    with col1:
+        if "humidity" in dff.columns:
+            st.metric("Avg Humidity", f"{dff['humidity'].mean():.1f}%")
+            st.metric("Max Humidity", f"{dff['humidity'].max():.1f}%")
+            st.metric("Min Humidity", f"{dff['humidity'].min():.1f}%")
 
-        # --- Correlation Heatmap ---
-        st.markdown('<a name="humid_corr"></a>', unsafe_allow_html=True)
-        # st.write("**Humidity–Visibility–Temperature Correlation Heatmap**")
-        fig3, ax3 = plt.subplots(figsize=(6,4))
-        ax3.set_title("Humidity–Visibility–Temperature Correlation Heatmap", fontsize=15, fontweight='bold')
-        corr = dff[["humidity","visibility_km","temperature_celsius"]].corr()
-        sns.heatmap(corr, annot=True, cmap="coolwarm", ax=ax3)
-        st.pyplot(fig3)
+    with col2:
+        if "visibility_km" in dff.columns:
+            st.metric("Avg Visibility", f"{dff['visibility_km'].mean():.2f} km")
+            st.metric("Max Visibility", f"{dff['visibility_km'].max():.2f} km")
+            st.metric("Min Visibility", f"{dff['visibility_km'].min():.2f} km")
 
-elif metric_group == "Wind":
-    st.subheader("🌬️ Wind Metrics")
+    st.markdown("---")
+
+    # Humidity vs Temperature Scatter
+    if "humidity" in dff.columns and "temperature_celsius" in dff.columns:
+        st.markdown("### 🔥 Humidity vs Temperature Relationship")
+        fig = px.scatter(dff, x="humidity", y="temperature_celsius", color="country" if "country" in dff.columns else None,
+                        title="Humidity vs Temperature",
+                        labels={"humidity": "Humidity (%)", "temperature_celsius": "Temperature (°C)"},
+                        opacity=0.6, trendline="ols")
+        fig.update_layout(height=500)
+        st.plotly_chart(fig, use_container_width=True)
+
+        # Correlation insight
+        corr = dff[["humidity", "temperature_celsius"]].corr().iloc[0, 1]
+        st.info(f"**Correlation:** {corr:.3f} — {'Strong' if abs(corr) > 0.7 else 'Moderate' if abs(corr) > 0.4 else 'Weak'} {'positive' if corr > 0 else 'negative'} relationship")
+
+    st.markdown("---")
+
+    # Country-wise Comparison
+    if "country" in dff.columns and "humidity" in dff.columns:
+        st.markdown("### 🌍 Country-wise Humidity & Visibility Comparison")
+
+        country_humid = dff.groupby("country")[["humidity", "visibility_km"]].mean().sort_values("humidity", ascending=False).head(15).reset_index()
+
+        fig = go.Figure()
+        fig.add_trace(go.Bar(x=country_humid["country"], y=country_humid["humidity"],
+                            name="Humidity (%)", marker_color='#4ECDC4'))
+        if "visibility_km" in country_humid.columns:
+            fig.add_trace(go.Bar(x=country_humid["country"], y=country_humid["visibility_km"],
+                                name="Visibility (km)", marker_color='#95E1D3', yaxis="y2"))
+
+        fig.update_layout(
+            title="Top 15 Countries: Humidity & Visibility",
+            xaxis_title="Country",
+            yaxis_title="Humidity (%)",
+            yaxis2=dict(title="Visibility (km)", overlaying='y', side='right'),
+            height=500,
+            xaxis_tickangle=-45,
+            barmode='group'
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+    st.markdown("---")
+
+    # Visibility Trend
+    if "visibility_km" in dff.columns and "date" in dff.columns:
+        st.markdown("### 🌫️ Visibility Trend Over Time")
+        daily_vis = dff.groupby("date")["visibility_km"].mean().reset_index()
+        fig = px.line(daily_vis, x="date", y="visibility_km",
+                     title="Average Daily Visibility", labels={"visibility_km": "Visibility (km)", "date": "Date"})
+        fig.update_traces(line_color='#95E1D3', line_width=2)
+        fig.update_layout(height=400)
+        st.plotly_chart(fig, use_container_width=True)
+
+    st.markdown("---")
+
+    # Insights Section
+    st.markdown("### 💡 Humidity & Visibility Insights")
+    if "humidity" in dff.columns and "visibility_km" in dff.columns:
+        humid_vis_corr = dff[["humidity", "visibility_km"]].corr().iloc[0, 1]
+        st.info(f"""
+        **Correlation between Humidity and Visibility:** {humid_vis_corr:.3f}
+
+        {f'High humidity tends to reduce visibility (correlation: {humid_vis_corr:.3f}). Moisture in the air can trap particulates and reduce visibility.' if humid_vis_corr < -0.3 else 'Humidity and visibility show minimal correlation.' if abs(humid_vis_corr) < 0.3 else 'Interestingly, higher humidity correlates with better visibility in this dataset.'}
+        """)
+
+# ==================== WIND PATTERNS ====================
+elif metric_group == "Wind Patterns":
+    st.markdown("## 🌬️ Wind Pattern Analysis")
 
     if "wind_kph" in dff.columns:
-        # --- Wind Speed Trend ---
-        st.markdown('<a name="wind_trend"></a>', unsafe_allow_html=True)
-        fig, ax = plt.subplots(figsize=(10,4))
-        ax.plot(dff["date"], dff["wind_kph"], label="wind_kph", color="blue")
-        if "gust_kph" in dff.columns:
-            ax.plot(dff["date"], dff["gust_kph"], label="gust_kph", color="red", alpha=0.6)
-        ax.legend()
-        ax.set_title("Wind Speed Trend")
-        st.pyplot(fig)
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Avg Wind Speed", f"{dff['wind_kph'].mean():.2f} km/h")
+        with col2:
+            st.metric("Max Wind Speed", f"{dff['wind_kph'].max():.2f} km/h")
+        with col3:
+            if "gust_kph" in dff.columns:
+                st.metric("Avg Gust Speed", f"{dff['gust_kph'].mean():.2f} km/h")
+        with col4:
+            if "gust_kph" in dff.columns:
+                st.metric("Max Gust Speed", f"{dff['gust_kph'].max():.2f} km/h")
 
-        # --- Gust vs Precipitation ---
-        st.markdown('<a name="gust_precip"></a>', unsafe_allow_html=True)
-        if "gust_kph" in dff.columns and "precip_mm" in dff.columns:
-            fig2, ax2 = plt.subplots(figsize=(6,4))
-            sns.scatterplot(data=dff, x="gust_kph", y="precip_mm", color="purple", ax=ax2)
-            ax2.set_title("Gusts vs Precipitation")
-            st.pyplot(fig2)
-    else:
-        st.warning("Wind data unavailable.")
+        st.markdown("---")
 
-elif metric_group == "Precipitation & Pressure":
-    st.subheader("🌧️ Precipitation & Pressure")
+        # Wind Speed Trend
+        st.markdown("### 🌪️ Wind Speed Trend Over Time")
+        daily_wind = dff.groupby("date")[["wind_kph", "gust_kph"]].mean().reset_index()
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=daily_wind["date"], y=daily_wind["wind_kph"],
+                                mode='lines', name='Wind Speed', line=dict(color='blue', width=2)))
+        if "gust_kph" in daily_wind.columns:
+            fig.add_trace(go.Scatter(x=daily_wind["date"], y=daily_wind["gust_kph"],
+                                    mode='lines', name='Gust Speed', line=dict(color='red', width=2)))
+        fig.update_layout(height=500, hovermode='x unified', xaxis_title="Date", yaxis_title="Speed (km/h)")
+        st.plotly_chart(fig, use_container_width=True)
 
-    if "date" in dff.columns:
-        dff["month"] = dff["date"].dt.to_period("M")
-        monthly = dff.groupby("month")[["precip_mm","pressure_mb"]].mean().reset_index()
+        st.markdown("---")
 
-        # --- Average Monthly Precipitation ---
-        st.markdown('<a name="precip_monthly"></a>', unsafe_allow_html=True)
-        if "precip_mm" in monthly.columns:
-            fig, ax = plt.subplots(figsize=(8,4))
-            sns.barplot(x=monthly["month"].astype(str), y="precip_mm", data=monthly, color="skyblue", ax=ax)
-            ax.set_xticklabels(ax.get_xticklabels(), rotation=45)
-            ax.set_title("Average Monthly Precipitation")
-            st.pyplot(fig)
-
-        # --- Pressure Trend ---
-        st.markdown('<a name="pressure_trend"></a>', unsafe_allow_html=True)
-        if "pressure_mb" in dff.columns:
-            fig2, ax2 = plt.subplots(figsize=(10,4))
-            ax2.plot(dff["date"], dff["pressure_mb"], color="brown")
-            ax2.set_ylabel("Pressure (mb)")
-            ax2.set_title("Pressure Trend Over Time")
-            st.pyplot(fig2)
-
-        # --- Pressure vs Precipitation ---
-        st.markdown('<a name="pressure_precip"></a>', unsafe_allow_html=True)
-        if "pressure_mb" in dff.columns and "precip_mm" in dff.columns:
-            fig3, ax3 = plt.subplots(figsize=(6,4))
-            sns.scatterplot(data=dff, x="pressure_mb", y="precip_mm", color="gray", ax=ax3)
-            ax3.set_title("Pressure vs Precipitation")
-            st.pyplot(fig3)
-    else:
-        st.warning("Date column missing for monthly aggregation.")
-
-elif metric_group == "Air Quality":
-    st.subheader("🌫️ Air Quality Metrics")
-
-    aq_cols = [c for c in ["air_quality_PM2.5","air_quality_PM10","air_quality_us-epa-index"] if c in dff.columns]
-    if aq_cols:
-        # --- AQ Trend ---
-        st.markdown('<a name="aq_trend"></a>', unsafe_allow_html=True)
-        fig, ax = plt.subplots(figsize=(10,4))
-        for c in aq_cols:
-            ax.plot(dff["date"], dff[c], label=c)
-        ax.legend()
-        ax.set_title("Air Quality Trend Over Time")
-        st.pyplot(fig)
-
-        # --- AQ Correlation ---
-        st.markdown('<a name="aq_corr"></a>', unsafe_allow_html=True)
-        fig2, ax2 = plt.subplots(figsize=(5,4))
-        sns.heatmap(dff[aq_cols].corr(), annot=True, cmap="YlOrRd", ax=ax2)
-        ax2.set_title("Pollutant Correlation Heatmap")
-        st.pyplot(fig2)
-
-        # --- AQ Regional ---
-        st.markdown('<a name="aq_region"></a>', unsafe_allow_html=True)
+        # Country-wise Comparison
         if "country" in dff.columns:
-            agg = dff.groupby("country")["air_quality_us-epa-index"].mean().sort_values(ascending=False).head(20)
-            st.bar_chart(agg)
+            st.markdown("### 🌍 Country-wise Wind Speed Comparison")
+
+            country_wind = dff.groupby("country")["wind_kph"].mean().sort_values(ascending=False).head(15).reset_index()
+
+            col1, col2 = st.columns(2)
+
+            with col1:
+                st.markdown("#### 🌪️ Windiest Countries")
+                windiest = country_wind.head(5)
+                for idx, row in windiest.iterrows():
+                    st.markdown(f"**{idx+1}. {row['country']}** — {row['wind_kph']:.2f} km/h")
+
+            with col2:
+                st.markdown("#### 🍃 Calmest Countries")
+                calmest = dff.groupby("country")["wind_kph"].mean().sort_values().head(5)
+                for idx, (country, speed) in enumerate(calmest.items(), 1):
+                    st.markdown(f"**{idx}. {country}** — {speed:.2f} km/h")
+
+            fig = px.bar(country_wind, x="country", y="wind_kph",
+                        title="Top 15 Windiest Countries",
+                        labels={"wind_kph": "Avg Wind Speed (km/h)", "country": "Country"},
+                        color="wind_kph", color_continuous_scale='Blues')
+            fig.update_layout(height=500, xaxis_tickangle=-45)
+            st.plotly_chart(fig, use_container_width=True)
+
+        st.markdown("---")
+
+        # Wind Distribution
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("### 📊 Wind Speed Distribution")
+            fig = px.histogram(dff, x="wind_kph", nbins=40,
+                             title="Wind Speed Distribution", labels={"wind_kph": "Wind Speed (km/h)"})
+            fig.update_traces(marker_color='#3498db')
+            fig.update_layout(height=400)
+            st.plotly_chart(fig, use_container_width=True)
+
+        with col2:
+            if "precip_mm" in dff.columns and "gust_kph" in dff.columns:
+                st.markdown("### 🌧️ Wind Gusts vs Precipitation")
+                fig = px.scatter(dff, x="gust_kph", y="precip_mm",
+                               title="Wind Gusts vs Precipitation",
+                               labels={"gust_kph": "Gust Speed (km/h)", "precip_mm": "Precipitation (mm)"},
+                               opacity=0.5)
+                fig.update_layout(height=400)
+                st.plotly_chart(fig, use_container_width=True)
+
+        st.markdown("---")
+
+        # Insights
+        st.markdown("### 💡 Wind Insights")
+        wind_mean = dff['wind_kph'].mean()
+        wind_category = "Strong" if wind_mean > 20 else "Moderate" if wind_mean > 10 else "Calm"
+        st.info(f"""
+        **Wind Conditions:** {wind_category} (Average: {wind_mean:.2f} km/h)
+
+        {f'Strong wind conditions are prevalent, which may indicate frequent storm systems or geographical factors.' if wind_mean > 20 else 'Moderate wind patterns suggest balanced atmospheric conditions.' if wind_mean > 10 else 'Generally calm wind conditions indicate stable weather patterns.'}
+        """)
+
     else:
-        st.warning("Air quality columns unavailable.")
+        st.warning("Wind data not available in the selected dataset.")
 
-elif metric_group == "Regional / Geographical":
-    import plotly.express as px
+# ==================== PRECIPITATION & PRESSURE ====================
+elif metric_group == "Precipitation & Pressure":
+    st.markdown("## 🌧️ Precipitation & Pressure Analysis")
 
-    st.subheader("🗺️ Regional & Geographical Analysis")
-    st.markdown('<a name="country_summary"></a>', unsafe_allow_html=True)
-    # Compute country-level aggregates
-    agg = country_aggregates(dff)
-    if not agg.empty:
-        st.write("**Country-Level Climate Summary**")
-        st.dataframe(agg)
+    col1, col2 = st.columns(2)
 
-        # Pick a representative metric for map coloring
-        st.markdown('<a name="metric_map"></a>', unsafe_allow_html=True)
-        st.markdown(
-    "<h4 style='font-size:25px; font-weight:600; color:#f5f6fa; margin-bottom:5px;'>Select Metric for Map Color</h4>",
-    unsafe_allow_html=True
-)
-        metric_choice = st.selectbox(
-            "",
-            ["temperature_celsius", "humidity", "air_quality_us-epa-index", "pressure_mb", "precip_mm"]
-        )
+    with col1:
+        if "precip_mm" in dff.columns:
+            st.metric("Avg Precipitation", f"{dff['precip_mm'].mean():.2f} mm")
+            st.metric("Max Precipitation", f"{dff['precip_mm'].max():.2f} mm")
+            rainy_days = (dff["precip_mm"] > 0).sum()
+            st.metric("Rainy Observations", f"{rainy_days:,} ({rainy_days/len(dff)*100:.1f}%)")
 
-        if metric_choice in dff.columns:
-            # Country-level mean metric
-            country_means = (
-                dff.groupby("country")[metric_choice]
-                .mean()
-                .reset_index()
-                .sort_values(metric_choice, ascending=False)
-            )
+    with col2:
+        if "pressure_mb" in dff.columns:
+            st.metric("Avg Pressure", f"{dff['pressure_mb'].mean():.2f} mb")
+            st.metric("Max Pressure", f"{dff['pressure_mb'].max():.2f} mb")
+            st.metric("Min Pressure", f"{dff['pressure_mb'].min():.2f} mb")
 
-            fig_choro = px.choropleth(
+    st.markdown("---")
+
+    # Regional Comparison
+    if "country" in dff.columns and "precip_mm" in dff.columns:
+        st.markdown("### 🌍 Regional Precipitation Comparison")
+
+        country_precip = dff.groupby("country")["precip_mm"].mean().sort_values(ascending=False).head(15).reset_index()
+
+        fig = px.bar(country_precip, x="precip_mm", y="country", orientation='h',
+                    title="Top 15 Countries by Precipitation",
+                    labels={"precip_mm": "Avg Precipitation (mm)", "country": "Country"},
+                    color="precip_mm", color_continuous_scale='Blues')
+        fig.update_layout(height=500)
+        st.plotly_chart(fig, use_container_width=True)
+
+    st.markdown("---")
+
+    # Monthly Precipitation
+    if "precip_mm" in dff.columns and "date" in dff.columns:
+        st.markdown("### 📊 Monthly Precipitation Pattern")
+        monthly_precip = dff.groupby(dff["date"].dt.to_period("M"))["precip_mm"].mean().reset_index()
+        monthly_precip["date"] = monthly_precip["date"].astype(str)
+        fig = px.bar(monthly_precip, x="date", y="precip_mm",
+                    title="Monthly Average Precipitation", labels={"precip_mm": "Precipitation (mm)", "date": "Month"})
+        fig.update_traces(marker_color='#3498db')
+        fig.update_layout(height=500, xaxis_tickangle=-45)
+        st.plotly_chart(fig, use_container_width=True)
+
+    st.markdown("---")
+
+    # Pressure Trend
+    if "pressure_mb" in dff.columns and "date" in dff.columns:
+        st.markdown("### 📉 Pressure Trend Over Time")
+        daily_pressure = dff.groupby("date")["pressure_mb"].mean().reset_index()
+        fig = px.line(daily_pressure, x="date", y="pressure_mb",
+                     title="Daily Average Pressure", labels={"pressure_mb": "Pressure (mb)", "date": "Date"})
+        fig.update_traces(line_color='#8e44ad', line_width=2)
+        fig.update_layout(height=400)
+        st.plotly_chart(fig, use_container_width=True)
+
+    st.markdown("---")
+
+    # Pressure vs Precipitation
+    if "pressure_mb" in dff.columns and "precip_mm" in dff.columns:
+        st.markdown("### 💨 Pressure vs Precipitation Relationship")
+        fig = px.scatter(dff, x="pressure_mb", y="precip_mm", color="country" if "country" in dff.columns else None,
+                        title="Pressure vs Precipitation",
+                        labels={"pressure_mb": "Pressure (mb)", "precip_mm": "Precipitation (mm)"},
+                        opacity=0.5, trendline="ols")
+        fig.update_layout(height=500)
+        st.plotly_chart(fig, use_container_width=True)
+
+        corr = dff[["pressure_mb", "precip_mm"]].corr().iloc[0, 1]
+        st.info(f"**Correlation:** {corr:.3f} — {f'Low pressure systems tend to bring rainfall (negative correlation: {corr:.3f}).' if corr < -0.2 else 'Pressure and precipitation show minimal direct correlation.' if abs(corr) < 0.2 else 'Interestingly, higher pressure correlates with more precipitation in this dataset.'}")
+
+    st.markdown("---")
+
+    # Insights
+    st.markdown("### 💡 Precipitation & Pressure Insights")
+    if "precip_mm" in dff.columns:
+        precip_mean = dff["precip_mm"].mean()
+        rainy_pct = (dff["precip_mm"] > 0).sum() / len(dff) * 100
+        st.info(f"""
+        **Precipitation Patterns:**
+        - Average precipitation: {precip_mean:.2f} mm
+        - Rainy observations: {rainy_pct:.1f}% of total records
+        - {'Frequent rainfall indicates wet climate conditions' if rainy_pct > 50 else 'Moderate rainfall patterns' if rainy_pct > 25 else 'Generally dry conditions with occasional rainfall'}
+        """)
+
+# ==================== AIR QUALITY ====================
+elif metric_group == "Air Quality":
+    st.markdown("## 🌫️ Air Quality Analysis")
+
+    aq_cols = [c for c in ["air_quality_PM2.5", "air_quality_PM10", "air_quality_us-epa-index",
+                           "air_quality_Carbon_Monoxide", "air_quality_Ozone"] if c in dff.columns]
+
+    if aq_cols:
+        # AQI Metrics
+        if "air_quality_us-epa-index" in dff.columns:
+            col1, col2, col3 = st.columns(3)
+            avg_aqi = dff["air_quality_us-epa-index"].mean()
+            with col1:
+                st.metric("Avg AQI", f"{avg_aqi:.2f}")
+            with col2:
+                aqi_category = {1: "Good", 2: "Moderate", 3: "Unhealthy for Sensitive",
+                               4: "Unhealthy", 5: "Very Unhealthy", 6: "Hazardous"}
+                st.metric("AQI Category", aqi_category.get(round(avg_aqi), "Unknown"))
+            with col3:
+                st.metric("Max AQI", f"{dff['air_quality_us-epa-index'].max():.2f}")
+
+        st.markdown("---")
+
+        # AQ Trend
+        st.markdown("### 📈 Air Quality Trend Over Time")
+        daily_aq = dff.groupby("date")[aq_cols].mean().reset_index()
+        fig = go.Figure()
+        colors = ['#e74c3c', '#f39c12', '#27ae60', '#3498db', '#9b59b6']
+        for idx, col in enumerate(aq_cols):
+            fig.add_trace(go.Scatter(x=daily_aq["date"], y=daily_aq[col],
+                                    mode='lines', name=col.replace('air_quality_', ''),
+                                    line=dict(color=colors[idx % len(colors)], width=2)))
+        fig.update_layout(height=500, hovermode='x unified', xaxis_title="Date", yaxis_title="Value")
+        st.plotly_chart(fig, use_container_width=True)
+
+        st.markdown("---")
+
+        # AQI vs Temperature
+        if "temperature_celsius" in dff.columns and "air_quality_us-epa-index" in dff.columns:
+            st.markdown("### 🌡️ Air Quality vs Temperature")
+            fig = px.scatter(dff, x="temperature_celsius", y="air_quality_us-epa-index",
+                           title="AQI vs Temperature Relationship",
+                           labels={"temperature_celsius": "Temperature (°C)", "air_quality_us-epa-index": "AQI"},
+                           opacity=0.5, trendline="ols", color="country" if "country" in dff.columns else None)
+            fig.update_layout(height=500)
+            st.plotly_chart(fig, use_container_width=True)
+
+            corr = dff[["temperature_celsius", "air_quality_us-epa-index"]].corr().iloc[0, 1]
+            st.info(f"**Temperature-AQI Correlation:** {corr:.3f} — {f'Higher temperatures tend to worsen air quality.' if corr > 0.3 else 'Temperature shows minimal impact on air quality.' if abs(corr) < 0.3 else 'Higher temperatures correlate with better air quality.'}")
+
+        st.markdown("---")
+
+        # AQI vs Humidity
+        if "humidity" in dff.columns and "air_quality_us-epa-index" in dff.columns:
+            st.markdown("### 💧 Air Quality vs Humidity")
+            fig = px.scatter(dff, x="humidity", y="air_quality_us-epa-index",
+                           title="AQI vs Humidity Relationship",
+                           labels={"humidity": "Humidity (%)", "air_quality_us-epa-index": "AQI"},
+                           opacity=0.5, trendline="ols")
+            fig.update_layout(height=500)
+            st.plotly_chart(fig, use_container_width=True)
+
+            corr = dff[["humidity", "air_quality_us-epa-index"]].corr().iloc[0, 1]
+            st.info(f"**Humidity-AQI Correlation:** {corr:.3f} — {f'High humidity may trap pollutants, worsening air quality.' if corr > 0.3 else 'Humidity shows minimal correlation with air quality.' if abs(corr) < 0.3 else 'Higher humidity correlates with better air quality.'}")
+
+        st.markdown("---")
+
+        # Pollutant Correlation
+        if len(aq_cols) > 1:
+            st.markdown("### 🔗 Pollutant Correlation Heatmap")
+            corr_aq = dff[aq_cols].corr()
+            fig = px.imshow(corr_aq, text_auto=True, color_continuous_scale='YlOrRd',
+                           title="Air Quality Pollutant Correlations")
+            fig.update_layout(height=600)
+            st.plotly_chart(fig, use_container_width=True)
+
+        st.markdown("---")
+
+        # Regional AQI
+        if "country" in dff.columns and "air_quality_us-epa-index" in dff.columns:
+            st.markdown("### 🗺️ Regional AQI Comparison")
+            country_aq = dff.groupby("country")["air_quality_us-epa-index"].mean().sort_values(ascending=False).head(15).reset_index()
+            fig = px.bar(country_aq, x="air_quality_us-epa-index", y="country", orientation='h',
+                        title="Top 15 Countries by AQI (Higher = Worse)",
+                        labels={"air_quality_us-epa-index": "Avg AQI", "country": "Country"})
+            fig.update_traces(marker_color='#e74c3c')
+            fig.update_layout(height=500)
+            st.plotly_chart(fig, use_container_width=True)
+
+        st.markdown("---")
+
+        # Conclusions
+        st.markdown("### 💡 Air Quality Conclusions")
+        if "air_quality_us-epa-index" in dff.columns:
+            avg_aqi = dff["air_quality_us-epa-index"].mean()
+            aqi_cat = {1: "Good", 2: "Moderate", 3: "Unhealthy for Sensitive Groups",
+                      4: "Unhealthy", 5: "Very Unhealthy", 6: "Hazardous"}
+            category = aqi_cat.get(round(avg_aqi), "Unknown")
+
+            st.info(f"""
+            **Overall Air Quality: {category}** (Average AQI: {avg_aqi:.2f})
+
+            **Key Findings:**
+            - Air quality is generally {category.lower()}
+            - {'Immediate action needed to reduce pollution levels' if avg_aqi > 4 else 'Monitor sensitive groups during peak pollution' if avg_aqi > 3 else 'Acceptable air quality for general population'}
+            - Pollutant levels {'exceed' if avg_aqi > 3 else 'meet'} standard health guidelines
+            """)
+
+    else:
+        st.warning("Air quality data not available in the selected dataset.")
+
+# ==================== GEOGRAPHIC ANALYSIS ====================
+elif metric_group == "Geographic Analysis":
+    st.markdown("## 🗺️ Geographic & Regional Analysis")
+
+    # Map Visualization
+    st.markdown("### 🗺️ Global Weather Map")
+    metric_choice = st.selectbox(
+        "Select Metric for Map Visualization",
+        ["temperature_celsius", "humidity", "pressure_mb", "precip_mm", "air_quality_us-epa-index", "wind_kph"]
+    )
+
+    if metric_choice in dff.columns:
+        # Choropleth Map
+        if "country" in dff.columns:
+            country_means = dff.groupby("country")[metric_choice].mean().reset_index().sort_values(metric_choice, ascending=False)
+            fig = px.choropleth(
                 country_means,
                 locations="country",
                 locationmode="country names",
                 color=metric_choice,
                 color_continuous_scale="RdYlBu_r",
-                title=f"Average {metric_choice.replace('_', ' ').title()} by Country",
+                title=f"Global {metric_choice.replace('_', ' ').title()} Distribution",
                 projection="natural earth",
-                height=650,
+                height=600
             )
-            fig_choro.update_geos(showcountries=True, showframe=True)
+            fig.update_geos(showcountries=True, showframe=True, showcoastlines=True)
+            st.plotly_chart(fig, use_container_width=True)
 
-            st.plotly_chart(fig_choro, use_container_width=True)
+            st.markdown("---")
 
-            # Identify highest and lowest countries
-            highest_country = country_means.iloc[0]
-            lowest_country = country_means.iloc[-1]
+            # Top 5 and Bottom 5
+            st.markdown(f"### 🏆 Rankings for {metric_choice.replace('_', ' ').title()}")
 
-            st.markdown(
-                f"""
-                <div style="font-size:20px; color:#dfe6e9; margin-top:15px;">
-                    🌍 <b>Highest {metric_choice.replace('_', ' ').title()}:</b> 
-                    <span style="color:#00cec9;">{highest_country['country']}</span> 
-                    ({highest_country[metric_choice]:.2f})<br>
-                    🧭 <b>Lowest {metric_choice.replace('_', ' ').title()}:</b> 
-                    <span style="color:#fab1a0;">{lowest_country['country']}</span> 
-                    ({lowest_country[metric_choice]:.2f})
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-            
-        else:
-            st.warning(f"Column '{metric_choice}' not found in dataset.")
-    else:
-        st.warning("No country data available for aggregation.")
+            col1, col2 = st.columns(2)
 
+            with col1:
+                st.markdown("#### 🔝 Top 5 Highest")
+                top5 = country_means.head(5)
+                for idx, row in top5.iterrows():
+                    st.success(f"**{idx+1}. {row['country']}** — {row[metric_choice]:.2f}")
+
+            with col2:
+                st.markdown("#### 🔻 Top 5 Lowest")
+                bottom5 = country_means.tail(5).iloc[::-1]
+                for idx, row in enumerate(bottom5.itertuples(), 1):
+                    st.info(f"**{idx}. {row.country}** — {getattr(row, metric_choice):.2f}")
+
+    st.markdown("---")
+
+    # Country-Level Summary (removed heatmap as requested)
+    if "country" in dff.columns:
+        st.markdown("### 📋 Country-Level Climate Summary")
+        agg = country_aggregates(dff)
+        if not agg.empty:
+            with st.expander("View Detailed Country Statistics", expanded=False):
+                st.dataframe(agg.head(20), use_container_width=True, height=400)
+
+# ==================== EXTREME EVENTS ====================
 elif metric_group == "Extreme Events":
-    st.subheader("⚠️ Extreme Weather Events")
+    st.markdown("## ⚠️ Extreme Weather Events Detection")
 
     thresholds, ext_events, summary = detect_extreme_events(dff)
 
-    # --- Thresholds Section ---
-    st.markdown('<a name="thresholds"></a>', unsafe_allow_html=True)
-    st.write("### Thresholds used to flag extremes:")
-    st.json(thresholds)
+    # Display Thresholds
+    st.markdown("### ⚙️ Detection Thresholds")
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        if "high_temp" in thresholds:
+            st.metric("High Temp Threshold", f"{thresholds['high_temp']:.2f}°C")
+    with col2:
+        if "high_wind" in thresholds:
+            st.metric("High Wind Threshold", f"{thresholds['high_wind']:.2f} km/h")
+    with col3:
+        if "heavy_precip" in thresholds:
+            st.metric("Heavy Precip Threshold", f"{thresholds['heavy_precip']:.2f} mm")
+    with col4:
+        if "low_visibility" in thresholds:
+            st.metric("Low Visibility Threshold", f"{thresholds['low_visibility']:.2f} km")
+
+    st.markdown("---")
 
     if not ext_events.empty:
-        # --- Extreme Table ---
-        st.markdown('<a name="extreme_table"></a>', unsafe_allow_html=True)
-        display_cols = ["date", "country", "location_name", "temperature_celsius",
-                        "wind_kph", "precip_mm", "visibility_km", "extreme_types"]
-        df_display = ext_events[display_cols].copy()
+        st.markdown(f"### 📊 Detected Events: {len(ext_events):,} extreme conditions")
 
-        color_map = {
-            "High Temp": "#FF6B6B",
-            "High Wind": "#4D96FF",
-            "Heavy Precip": "#4CAF50",
-            "Low Visibility": ""
-        }
+        # Event Type Breakdown
+        if "extreme_types" in ext_events.columns:
+            event_counts = ext_events["extreme_types"].value_counts().head(10)
+            fig = px.bar(
+                x=event_counts.values,
+                y=event_counts.index,
+                orientation='h',
+                title="Top 10 Extreme Event Types",
+                labels={"x": "Count", "y": "Event Type"}
+            )
+            fig.update_traces(marker_color='#e74c3c')
+            fig.update_layout(height=500)
+            st.plotly_chart(fig, use_container_width=True)
 
-        legend_html = """
-        <b>Legend (Row Color):</b> 
-        <span style='background-color:#FF6B6B;padding:2px 8px;margin-right:5px;'>High Temp</span>
-        <span style='background-color:#4D96FF;padding:2px 8px;margin-right:5px;'>High Wind</span>
-        <span style='background-color:#4CAF50;padding:2px 8px;margin-right:5px;'>Heavy Precip</span>
-        <span style='background-color:transparent;padding:2px 8px;margin-right:5px;'>Low Visibility</span>
-        """
-        st.markdown(legend_html, unsafe_allow_html=True)
+        st.markdown("---")
 
-        def highlight_extremes(row):
-            if row["extreme_types"]:
-                for key in color_map:
-                    if key.lower() in row["extreme_types"].lower() and color_map[key]:
-                        return ['background-color: ' + color_map[key]] * len(row)
-            return [''] * len(row)
+        st.markdown("""
+            **Legend:**
+            - 🔴 **Red**: Heatwave  
+            - 🔵 **Blue**: Flood  
+            - 🟣 **Purple**: Storm  
+            - 🟡 **Yellow**: Drought  
+            - ⚫ **Gray**: Mixed Events
+        """)
 
-        st.write("### Extreme Events Table (highlighted by type)")
-        st.dataframe(df_display.style.apply(highlight_extremes, axis=1))
+        # Color-coded Choropleth Map
+        st.markdown("### 🗺️ Extreme Events Map (Color-coded by Event Type)")
+
+        if "country" in ext_events.columns and "extreme_types" in ext_events.columns:
+            # Create country-level event summary
+            country_events = ext_events.groupby("country")["extreme_types"].apply(
+                lambda x: x.mode()[0] if len(x.mode()) > 0 else "Mixed"
+            ).reset_index()
+            country_events.columns = ["country", "primary_event"]
+
+            country_events["color_code"] = country_events["primary_event"].map(
+                lambda x: 1 if "Heatwave" in str(x)
+                else 2 if "Flood" in str(x)
+                else 3 if "Storm" in str(x)
+                else 4 if "Drought" in str(x)
+                else 5
+            )
+
+            fig = px.choropleth(
+                country_events,
+                locations="country",
+                locationmode="country names",
+                color="color_code",
+                hover_name="country",
+                hover_data={"primary_event": True, "color_code": False},
+                color_continuous_scale=[
+                    [0.0, "#FF0000"],   # Heatwave - Red
+                    [0.25, "#0000FF"],  # Flood - Blue
+                    [0.5, "#9B59B6"],   # Storm - Purple
+                    [0.75, "#FFD700"],  # Drought - Yellow
+                    [1.0, "#808080"]    # Mixed - Gray
+                ],
+                title="Extreme Events by Country (Color-coded)",
+                projection="natural earth",
+                height=600
+            )
+            fig.update_geos(showcountries=True, showframe=True, showcoastlines=True)
+            fig.update_layout(coloraxis_showscale=False)
+            st.plotly_chart(fig, use_container_width=True)
+
+        st.markdown("---")
+
+        # Extreme Events Table with color coding
+        st.markdown("### 📋 Extreme Events Log")
+
+        display_cols = [
+            c for c in [
+                "date", "country", "location_name", "temperature_celsius",
+                "wind_kph", "precip_mm", "visibility_km", "extreme_types"
+            ] if c in ext_events.columns
+        ]
+
+        if display_cols:
+            df_display = ext_events[display_cols].copy()
+
+            # Style function: slightly darker, readable pastel tones
+            def style_extreme_rows(row):
+                style = ['color: black'] * len(row)  # Keep text readable
+                if "extreme_types" in row and pd.notna(row["extreme_types"]):
+                    event_type = str(row["extreme_types"])
+                    if "Heatwave" in event_type:
+                        bg_color = '#8B0000'  # darker light red
+                    elif "Flood" in event_type:
+                        bg_color = '#3366CC'  # darker light blue
+                    elif "Storm" in event_type:
+                        bg_color = '#e0ccff'  # darker light purple
+                    elif "Drought" in event_type:
+                        bg_color = '#fff5b3'  # darker light yellow
+                    else:
+                        bg_color = '2B2B2B'  # soft gray for mixed
+                    return [f'background-color: {bg_color}; color: black'] * len(row)
+                return style
+
+            # Apply styling
+            styled_df = df_display.head(100).style.apply(style_extreme_rows, axis=1)
+
+            # Display styled DataFrame
+            st.dataframe(styled_df, use_container_width=True, height=500)
+
+            # Download button
+            csv = df_display.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="📥 Download Extreme Events CSV",
+                data=csv,
+                file_name=f"extreme_events_{datetime.now().strftime('%Y%m%d')}.csv",
+                mime="text/csv"
+            )
     else:
-        st.info("No extreme events detected in this selection.")
+        st.info("No extreme events detected in the selected data range.")
 
-# --- Footer ---
+# ==================== FORECASTING ====================
+elif metric_group == "Forecasting":
+    st.markdown("## 📈 Weather Forecasting (Table Format)")
+
+   
+
+    # Forecast Settings
+    col1, col2 = st.columns(2)
+    with col1:
+        forecast_days = st.slider("Forecast Period (Days)", 7, 90, 30)
+
+    st.markdown("---")
+
+    # Multi-metric forecast
+    st.markdown("### 📊 Multi-Metric Forecast Table")
+
+    forecast_df = forecast_multiple_metrics(dff, periods=forecast_days)
+
+    if not forecast_df.empty:
+        # Display as table
+        st.dataframe(forecast_df, use_container_width=True, height=500)
+
+        # Summary Statistics
+        st.markdown("### 📈 Forecast Summary")
+
+        cols_to_analyze = [c for c in forecast_df.columns if c != 'Date']
+
+        for col in cols_to_analyze:
+            with st.expander(f"📊 {col} Forecast Insights", expanded=False):
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.metric("Forecast Mean", f"{forecast_df[col].mean():.2f}")
+                with col2:
+                    st.metric("Forecast Max", f"{forecast_df[col].max():.2f}")
+                with col3:
+                    st.metric("Forecast Min", f"{forecast_df[col].min():.2f}")
+                with col4:
+                    trend = "Increasing" if forecast_df[col].iloc[-1] > forecast_df[col].iloc[0] else "Decreasing"
+                    st.metric("Trend", trend)
+
+        # Download forecast
+        csv = forecast_df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📥 Download Forecast CSV",
+            data=csv,
+            file_name=f"weather_forecast_{datetime.now().strftime('%Y%m%d')}.csv",
+            mime="text/csv"
+        )
+
+        # Insights
+        st.markdown("### 💡 Forecast Insights")
+        insights_text = "**Key Forecast Observations:**\n\n"
+        for col in cols_to_analyze:
+            mean_val = forecast_df[col].mean()
+            trend_val = forecast_df[col].iloc[-1] - forecast_df[col].iloc[0]
+            trend_dir = "increasing" if trend_val > 0 else "decreasing"
+            insights_text += f"- **{col}:** Average forecast value is {mean_val:.2f}, showing a {trend_dir} trend ({abs(trend_val):.2f} change over {forecast_days} days).\n"
+
+        st.info(insights_text)
+
+    else:
+        st.warning("Unable to generate forecast with available data.")
+
+# ==================== ADVANCED ANALYTICS ====================
+elif metric_group == "Advanced Analytics":
+    st.markdown("## 🔬 Advanced Statistical Analysis")
+
+    # Descriptive Statistics
+    st.markdown("### 📊 Comprehensive Descriptive Statistics")
+    desc_stats = descriptive_stats(dff)
+    st.dataframe(desc_stats, use_container_width=True, height=400)
+
+    st.markdown("---")
+
+    # Correlation Analysis
+    st.markdown("### 🔗 Correlation Analysis")
+    corr, corr_fig = correlation_matrix(dff)
+    if corr_fig:
+        corr_fig.update_layout(height=800)
+        st.plotly_chart(corr_fig, use_container_width=True)
+
+        # Top Correlations
+        st.markdown("#### 🔝 Strongest Correlations")
+
+        # Get upper triangle of correlation matrix
+        corr_upper = corr.where(np.triu(np.ones(corr.shape), k=1).astype(bool))
+        corr_pairs = corr_upper.stack().sort_values(ascending=False)
+
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("**Positive Correlations**")
+            for idx, (pair, val) in enumerate(corr_pairs.head(5).items(), 1):
+                st.write(f"{idx}. {pair[0]} ↔ {pair[1]}: **{val:.3f}**")
+
+        with col2:
+            st.markdown("**Negative Correlations**")
+            for idx, (pair, val) in enumerate(corr_pairs.tail(5).items(), 1):
+                st.write(f"{idx}. {pair[0]} ↔ {pair[1]}: **{val:.3f}**")
+
+    st.markdown("---")
+
+    # Correlation Insights with Interpretations
+    st.markdown("### 💡 Correlation Insights & Interpretations")
+    corr_insights = analyze_correlation_insights(dff)
+
+    if corr_insights:
+        for key, insight in corr_insights.items():
+            st.info(f"**{key.replace('_', ' ').title()}:** {insight}")
+    else:
+        st.warning("No significant correlations detected for interpretation.")
+
+    st.markdown("---")
+
+    # PCA Analysis
+    st.markdown("### 🎯 Principal Component Analysis (PCA)")
+    pca_df, pca_fig, pca_insights = perform_pca_analysis(dff)
+
+    if pca_fig:
+        st.plotly_chart(pca_fig, use_container_width=True)
+
+        if pca_insights:
+            st.info(f"""
+            **PCA Insights:**
+            - First principal component explains **{pca_insights['pc1_variance']:.2f}%** of variance
+            - Second principal component explains **{pca_insights['pc2_variance']:.2f}%** of variance
+            - Together, the first two components capture **{pca_insights['total_variance_2pc']:.2f}%** of total variance
+            - Analysis based on **{pca_insights['components']}** weather metrics
+
+            **Interpretation:** The high variance explained by the first two components suggests that weather patterns can be effectively summarized using fewer dimensions, indicating strong underlying patterns in the climate data.
+            """)
+    else:
+        st.warning("PCA analysis unavailable for the current dataset.")
+
+    st.markdown("---")
+
+    # Clustering Analysis
+    st.markdown("### 🗺️ Climate Zone Clustering (K-Means)")
+
+    n_clusters = st.slider("Number of Climate Zones", 3, 10, 5)
+    cluster_df, cluster_fig, cluster_insights = perform_clustering(dff, n_clusters=n_clusters)
+
+    if cluster_fig:
+        cluster_fig.update_layout(height=600)
+        st.plotly_chart(cluster_fig, use_container_width=True)
+
+        if cluster_insights:
+            st.info(f"""
+            **Clustering Insights:**
+            - Identified **{cluster_insights['n_clusters']} distinct climate zones**
+            - Largest cluster contains **{cluster_insights['largest_cluster']}** observations
+            - Smallest cluster contains **{cluster_insights['smallest_cluster']}** observations
+
+            **Interpretation:** Clustering reveals distinct climate patterns across regions. Similar weather conditions group together, helping identify climate zones with comparable characteristics.
+            """)
+
+            # Cluster distribution
+            cluster_dist = pd.DataFrame(list(cluster_insights['cluster_distribution'].items()),
+                                       columns=['Cluster', 'Count'])
+            fig = px.bar(cluster_dist, x='Cluster', y='Count',
+                        title="Climate Zone Distribution",
+                        labels={'Cluster': 'Climate Zone', 'Count': 'Number of Observations'})
+            fig.update_layout(height=400)
+            st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.warning("Clustering analysis unavailable for the current dataset.")
+
+    st.markdown("---")
+
+    # Anomaly Detection
+    st.markdown("### 🚨 Anomaly Detection")
+
+    anomaly_metric = st.selectbox("Select Metric for Anomaly Detection",
+                                  ["temperature_celsius", "humidity", "pressure_mb", "wind_kph", "precip_mm"])
+
+    if anomaly_metric in dff.columns:
+        anomalies, anomaly_insights = detect_anomalies(dff, metric=anomaly_metric, threshold=3.0)
+
+        if not anomalies.empty:
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Total Anomalies", f"{anomaly_insights['total_anomalies']:,}")
+            with col2:
+                st.metric("Anomaly Percentage", f"{anomaly_insights['anomaly_percentage']:.2f}%")
+            with col3:
+                st.metric("Z-Score Threshold", f"{anomaly_insights['threshold']}")
+
+            st.markdown("#### 📋 Detected Anomalies")
+            st.dataframe(anomalies.head(50), use_container_width=True, height=400)
+
+            st.info(f"""
+            **Anomaly Detection Summary:**
+            - Detected **{anomaly_insights['total_anomalies']}** anomalies ({anomaly_insights['anomaly_percentage']:.2f}% of data)
+            - Mean {anomaly_metric}: {anomaly_insights['mean']:.2f}
+            - Standard deviation: {anomaly_insights['std']:.2f}
+
+            **Interpretation:** Anomalies represent unusual weather events that deviate significantly from normal patterns. These could indicate extreme conditions, measurement errors, or rare weather phenomena requiring further investigation.
+            """)
+        else:
+            st.success("No anomalies detected in the selected metric.")
+
+    st.markdown("---")
+
+    # Overall Interpretation Section
+    st.markdown("### 📝 Overall Advanced Analytics Interpretation")
+    st.success("""
+    **Key Takeaways from Advanced Analytics:**
+
+    1. **Correlation Analysis** reveals the relationships between weather metrics, helping us understand how different factors influence each other. For example, high correlation between humidity and AQI indicates moisture may trap pollutants.
+
+    2. **PCA (Principal Component Analysis)** reduces data complexity by identifying the most important patterns. High variance explained by few components suggests weather data has strong underlying structure.
+
+    3. **Clustering** identifies distinct climate zones with similar weather patterns. This helps categorize regions and understand global climate diversity.
+
+    4. **Anomaly Detection** flags unusual weather events that deviate from normal patterns, which is crucial for identifying extreme weather conditions and potential data quality issues.
+
+    Together, these analyses provide a comprehensive understanding of weather patterns, their relationships, and unusual events across the selected dataset.
+    """)
+
+# ==================== FOOTER ====================
 st.markdown("---")
-
-# # app_streamlit.py (Enhanced UI Edition)
-# import streamlit as st
-# import pandas as pd
-# import numpy as np
-# import matplotlib.pyplot as plt
-# import seaborn as sns
-# import plotly.express as px
-# from Analyse import (
-#     load_data, descriptive_stats, country_aggregates, correlation_matrix,
-#     monthly_trends, detect_extreme_events, region_comparisons
-# )
-
-# # --- Page Configuration ---
-# st.set_page_config(
-#     page_title="🌦️ ClimateScope — Global Weather Insights",
-#     layout="wide",
-#     initial_sidebar_state="expanded"
-# )
-
-# # --- Global Styling ---
-# st.markdown("""
-# <style>
-# html, body, [class*="css"] {
-#     font-family: 'Poppins', sans-serif;
-#     background-color: #f7f9fb;
-# }
-
-# /* Title and headers */
-# h1 {
-#     color: #1E3A8A !important;
-#     font-size: 38px !important;
-#     font-weight: 700 !important;
-# }
-# h2, h3 {
-#     color: #334155 !important;
-#     font-weight: 600 !important;
-# }
-
-# /* Sidebar */
-# section[data-testid="stSidebar"] {
-#     background-color: #e0e7ff;
-#     color: #1e293b;
-#     border-right: 1px solid #c7d2fe;
-# }
-
-# /* Metric and Info */
-# [data-testid="stMetricValue"] {
-#     color: #1E40AF !important;
-#     font-weight: 600 !important;
-# }
-# [data-testid="stMetricLabel"] {
-#     color: #334155 !important;
-# }
-
-# /* Plot Containers */
-# .plot-container {
-#     background: white;
-#     border-radius: 12px;
-#     padding: 16px;
-#     box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-#     margin-bottom: 32px;
-# }
-
-# /* Links */
-# a {
-#     color: #1E3A8A !important;
-#     text-decoration: none;
-# }
-# a:hover {
-#     text-decoration: underline !important;
-# }
-
-# /* Footer */
-# hr {
-#     border: 1px solid #CBD5E1;
-#     margin: 2rem 0;
-# }
-# </style>
-# """, unsafe_allow_html=True)
-
-# # --- Load Data ---
-# DATA_PATH = "../data/GlobalWeatherRepository_cleaned.csv"
-
-# @st.cache_data
-# def get_data():
-#     return load_data(DATA_PATH)
-
-# df = get_data()
-
-# # --- Sidebar ---
-# with st.sidebar:
-#     st.markdown("### 🌍 ClimateScope Dashboard")
-#     st.markdown("---")
-
-#     # --- Filters ---
-#     st.header("Filters")
-
-#     countries = sorted(df["country"].dropna().unique().tolist())
-#     selected_country = st.multiselect(
-#         "Select Countries",
-#         countries,
-#         default=countries[:3]
-#     )
-
-#     dff = df[df["country"].isin(selected_country)] if selected_country else df
-
-#     date_min, date_max = df["date"].min(), df["date"].max()
-#     selected_dates = st.date_input("Date Range", (date_min, date_max))
-
-#     metric_group = st.selectbox(
-#         "Metric Group",
-#         [
-#             "Temperature",
-#             "Humidity & Visibility",
-#             "Wind",
-#             "Precipitation & Pressure",
-#             "Air Quality",
-#             "Regional / Geographical",
-#             "Extreme Events"
-#         ]
-#     )
-
-#     st.markdown("---")
-#     st.markdown("#### 📊 Data Overview")
-#     st.info(f"**Countries selected:** {len(selected_country)} / {len(countries)}")
-#     st.metric("Records in Selection", f"{dff.shape[0]:,}")
-
-# # --- Apply Filters ---
-# if selected_country:
-#     dff = dff[dff["country"].isin(selected_country)]
-# if selected_dates and isinstance(selected_dates, tuple):
-#     start, end = selected_dates
-#     dff = dff[(dff["date"] >= pd.to_datetime(start)) & (dff["date"] <= pd.to_datetime(end))]
-
-# # --- Header ---
-# st.title("🌦️ ClimateScope — Global Weather Insights")
-# st.markdown("### 🔍 Interactive Climate Analytics")
-# st.markdown("---")
-
-# # --- Unified Figure Style ---
-# plt.rcParams.update({
-#     "figure.figsize": (10, 5),
-#     "axes.titlesize": 13,
-#     "axes.labelsize": 11,
-#     "xtick.labelsize": 10,
-#     "ytick.labelsize": 10
-# })
-
-# # Utility function to wrap plots with consistent card style
-# def plot_card(title, fig):
-#     st.markdown('<div class="plot-container">', unsafe_allow_html=True)
-#     st.write(f"**{title}**")
-#     st.pyplot(fig)
-#     st.markdown('</div>', unsafe_allow_html=True)
-
-# # --- Metric Group Visualizations ---
-# if metric_group == "Temperature":
-#     st.subheader("🌡️ Temperature Metrics")
-#     cols = ["temperature_celsius", "feels_like_celsius"]
-#     available = [c for c in cols if c in dff.columns]
-
-#     if available:
-#         fig, ax = plt.subplots()
-#         for c in available:
-#             ax.plot(dff["date"], dff[c], label=c, linewidth=2)
-#         ax.legend()
-#         ax.set_xlabel("Date"); ax.set_ylabel("°C")
-#         plot_card("Temperature Trend Over Time", fig)
-
-#         fig2, ax2 = plt.subplots()
-#         sns.histplot(dff["temperature_celsius"], kde=True, ax=ax2, color="#F97316")
-#         plot_card("Temperature Distribution", fig2)
-
-#         dff["month"] = dff["date"].dt.month
-#         fig3, ax3 = plt.subplots()
-#         sns.boxplot(x="month", y="temperature_celsius", data=dff, palette="coolwarm", ax=ax3)
-#         ax3.set_title("Monthly Temperature Spread")
-#         plot_card("Monthly Temperature Distribution", fig3)
-#     else:
-#         st.warning("Temperature data unavailable.")
-
-# elif metric_group == "Humidity & Visibility":
-#     st.subheader("💧 Humidity & Visibility")
-#     if {"humidity","visibility_km","temperature_celsius"}.issubset(dff.columns):
-#         fig, ax = plt.subplots()
-#         sns.scatterplot(data=dff, x="humidity", y="temperature_celsius", alpha=0.5, color="teal", ax=ax)
-#         plot_card("Humidity vs Temperature", fig)
-
-#         fig2, ax2 = plt.subplots()
-#         ax2.plot(dff["date"], dff["visibility_km"], color="orange")
-#         ax2.set_ylabel("Visibility (km)")
-#         plot_card("Visibility Trend Over Time", fig2)
-
-#         fig3, ax3 = plt.subplots()
-#         corr = dff[["humidity","visibility_km","temperature_celsius"]].corr()
-#         sns.heatmap(corr, annot=True, cmap="coolwarm", ax=ax3)
-#         plot_card("Humidity–Visibility–Temperature Correlation Heatmap", fig3)
-
-# elif metric_group == "Wind":
-#     st.subheader("🌬️ Wind Metrics")
-#     if "wind_kph" in dff.columns:
-#         fig, ax = plt.subplots()
-#         ax.plot(dff["date"], dff["wind_kph"], label="wind_kph", color="#2563EB", linewidth=2)
-#         if "gust_kph" in dff.columns:
-#             ax.plot(dff["date"], dff["gust_kph"], label="gust_kph", color="#F43F5E", alpha=0.7)
-#         ax.legend()
-#         plot_card("Wind Speed Trend", fig)
-
-#         if "gust_kph" in dff.columns and "precip_mm" in dff.columns:
-#             fig2, ax2 = plt.subplots()
-#             sns.scatterplot(data=dff, x="gust_kph", y="precip_mm", color="#7C3AED", ax=ax2)
-#             plot_card("Gusts vs Precipitation", fig2)
-#     else:
-#         st.warning("Wind data unavailable.")
-
-# elif metric_group == "Precipitation & Pressure":
-#     st.subheader("🌧️ Precipitation & Pressure")
-#     if "date" in dff.columns:
-#         dff["month"] = dff["date"].dt.to_period("M")
-#         monthly = dff.groupby("month")[["precip_mm","pressure_mb"]].mean().reset_index()
-
-#         if "precip_mm" in monthly.columns:
-#             fig, ax = plt.subplots()
-#             sns.barplot(x=monthly["month"].astype(str), y="precip_mm", data=monthly, color="#38BDF8", ax=ax)
-#             ax.set_xticklabels(ax.get_xticklabels(), rotation=45)
-#             plot_card("Average Monthly Precipitation", fig)
-
-#         if "pressure_mb" in dff.columns:
-#             fig2, ax2 = plt.subplots()
-#             ax2.plot(dff["date"], dff["pressure_mb"], color="#78350F")
-#             ax2.set_ylabel("Pressure (mb)")
-#             plot_card("Pressure Trend Over Time", fig2)
-
-#         if "pressure_mb" in dff.columns and "precip_mm" in dff.columns:
-#             fig3, ax3 = plt.subplots()
-#             sns.scatterplot(data=dff, x="pressure_mb", y="precip_mm", color="#475569", ax=ax3)
-#             plot_card("Pressure vs Precipitation", fig3)
-#     else:
-#         st.warning("Date column missing for monthly aggregation.")
-
-# elif metric_group == "Air Quality":
-#     st.subheader("🌫️ Air Quality Metrics")
-#     aq_cols = [c for c in ["air_quality_PM2.5","air_quality_PM10","air_quality_us-epa-index"] if c in dff.columns]
-#     if aq_cols:
-#         fig, ax = plt.subplots()
-#         for c in aq_cols:
-#             ax.plot(dff["date"], dff[c], label=c)
-#         ax.legend()
-#         plot_card("Air Quality Trend Over Time", fig)
-
-#         fig2, ax2 = plt.subplots()
-#         sns.heatmap(dff[aq_cols].corr(), annot=True, cmap="YlOrRd", ax=ax2)
-#         plot_card("Pollutant Correlation Heatmap", fig2)
-
-#         if "country" in dff.columns:
-#             agg = dff.groupby("country")["air_quality_us-epa-index"].mean().sort_values(ascending=False).head(20)
-#             st.bar_chart(agg)
-#     else:
-#         st.warning("Air quality columns unavailable.")
-
-# elif metric_group == "Regional / Geographical":
-#     st.subheader("🗺️ Regional & Geographical Analysis")
-#     agg = country_aggregates(dff)
-#     if not agg.empty:
-#         st.write("**Country-Level Climate Summary**")
-#         st.dataframe(agg)
-
-#         metric_choice = st.selectbox(
-#             "Select metric for map color",
-#             ["temperature_celsius", "humidity", "air_quality_us-epa-index", "pressure_mb", "precip_mm"]
-#         )
-#         if metric_choice in dff.columns:
-#             country_means = (
-#                 dff.groupby("country")[metric_choice]
-#                 .mean()
-#                 .reset_index()
-#                 .sort_values(metric_choice, ascending=False)
-#             )
-#             fig_choro = px.choropleth(
-#                 country_means,
-#                 locations="country",
-#                 locationmode="country names",
-#                 color=metric_choice,
-#                 color_continuous_scale="RdYlBu_r",
-#                 title=f"Average {metric_choice} by Country",
-#                 projection="natural earth",
-#                 height=650,
-#             )
-#             fig_choro.update_geos(showcountries=True, showframe=True)
-#             st.plotly_chart(fig_choro, use_container_width=True)
-#         else:
-#             st.warning(f"Column '{metric_choice}' not found.")
-#     else:
-#         st.warning("No country data available for aggregation.")
-
-# elif metric_group == "Extreme Events":
-#     st.subheader("⚠️ Extreme Weather Events")
-#     thresholds, ext_events, summary = detect_extreme_events(dff)
-
-#     st.write("### Thresholds used to flag extremes:")
-#     st.json(thresholds)
-
-#     if not ext_events.empty:
-#         display_cols = ["date", "country", "location_name", "temperature_celsius",
-#                         "wind_kph", "precip_mm", "visibility_km", "extreme_types"]
-#         df_display = ext_events[display_cols].copy()
-
-#         color_map = {
-#             "High Temp": "#FF6B6B",
-#             "High Wind": "#4D96FF",
-#             "Heavy Precip": "#4CAF50",
-#         }
-
-#         def highlight_extremes(row):
-#             if row["extreme_types"]:
-#                 for key in color_map:
-#                     if key.lower() in row["extreme_types"].lower():
-#                         return ['background-color: ' + color_map[key]] * len(row)
-#             return [''] * len(row)
-
-#         st.write("### Extreme Events Table (highlighted by type)")
-#         st.dataframe(df_display.style.apply(highlight_extremes, axis=1))
-#     else:
-#         st.info("No extreme events detected in this selection.")
-
-# # --- Footer ---
-# st.markdown("---")
-# st.caption("© 2025 ClimateScope | Interactive Climate Data Visualization Dashboard 🌍")
 
