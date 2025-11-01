@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -17,7 +16,6 @@ warnings.filterwarnings('ignore')
 DATA_PATH_DEFAULT = "../data/GlobalWeatherRepository_cleaned.csv"
 
 # Key numeric columns for analysis
-=======
 # analyse.py  (in-memory, returns results; no disk writes)
 import pandas as pd
 import numpy as np
@@ -39,7 +37,6 @@ KEY_NUMERIC_COLUMNS = [
 ]
 
 
-<<<<<<< HEAD
 def load_data(path: str = DATA_PATH_DEFAULT) -> pd.DataFrame:
     """
     Load and preprocess the global weather dataset.
@@ -123,9 +120,8 @@ def country_aggregates(df: pd.DataFrame, cols: Optional[List[str]] = None) -> pd
     cols = cols or KEY_NUMERIC_COLUMNS
     cols = [c for c in cols if c in df.columns]
 
-
-    return desc
-
+    agg = df.groupby("country")[cols].agg(["mean", "median", "std", "min", "max", "count"])
+    return agg
 
 def country_aggregates(df, cols=None):
     cols = cols or KEY_NUMERIC_COLUMNS
@@ -137,7 +133,7 @@ def country_aggregates(df, cols=None):
     return agg
 
 
-<<<<<<< HEAD
+
 def correlation_matrix(df: pd.DataFrame) -> Tuple[pd.DataFrame, go.Figure]:
     """
     Compute correlation matrix and generate interactive heatmap.
@@ -264,7 +260,7 @@ def detect_extreme_events(
     num = df.select_dtypes(include=[np.number])
     thresholds = {}
 
-=======
+
 def correlation_matrix(df):
     num = df.select_dtypes(include=[np.number])
     corr = num.corr(method="pearson")
@@ -325,7 +321,7 @@ def detect_extreme_events(df, temp_pct=0.95, wind_pct=0.95, precip_pct=0.95, vis
     if "high_temp" in thresholds:
         df_ext["extreme_high_temp"] = df_ext["temperature_celsius"] >= thresholds["high_temp"]
         conds.append("extreme_high_temp")
-<<<<<<< HEAD
+
         event_type_mapping["extreme_high_temp"] = "Heatwave"
 
     if "high_wind" in thresholds:
