@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -16,6 +17,15 @@ warnings.filterwarnings('ignore')
 DATA_PATH_DEFAULT = "../data/GlobalWeatherRepository_cleaned.csv"
 
 # Key numeric columns for analysis
+=======
+# analyse.py  (in-memory, returns results; no disk writes)
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+
+DATA_PATH_DEFAULT = "../data/GlobalWeatherRepository_cleaned.csv"
+
+>>>>>>> a6a30ff864d6cbe6d03322a4a5eeae6d203ff0e5
 KEY_NUMERIC_COLUMNS = [
     "temperature_celsius", "feels_like_celsius", "temperature_fahrenheit", "feels_like_fahrenheit",
     "wind_mph", "wind_kph", "gust_mph", "gust_kph",
@@ -29,6 +39,7 @@ KEY_NUMERIC_COLUMNS = [
 ]
 
 
+<<<<<<< HEAD
 def load_data(path: str = DATA_PATH_DEFAULT) -> pd.DataFrame:
     """
     Load and preprocess the global weather dataset.
@@ -70,10 +81,26 @@ def descriptive_stats(df: pd.DataFrame) -> pd.DataFrame:
     Returns:
         DataFrame with statistical summaries including mean, median, std, skew, kurtosis
     """
+=======
+def load_data(path=DATA_PATH_DEFAULT):
+    df = pd.read_csv(path)
+    if "date" in df.columns:
+        df["date"] = pd.to_datetime(df["date"]).dt.tz_localize(None)
+    if "last_updated" in df.columns:
+        try:
+            df["last_updated"] = pd.to_datetime(df["last_updated"]).dt.tz_localize(None)
+        except Exception:
+            pass
+    return df
+
+
+def descriptive_stats(df):
+>>>>>>> a6a30ff864d6cbe6d03322a4a5eeae6d203ff0e5
     num = df.select_dtypes(include=[np.number])
     desc = num.describe().T
     desc["skew"] = num.skew()
     desc["kurtosis"] = num.kurtosis()
+<<<<<<< HEAD
     desc["missing"] = num.isnull().sum()
     desc["missing_pct"] = (desc["missing"] / len(df) * 100).round(2)
     return desc
@@ -96,10 +123,21 @@ def country_aggregates(df: pd.DataFrame, cols: Optional[List[str]] = None) -> pd
     cols = cols or KEY_NUMERIC_COLUMNS
     cols = [c for c in cols if c in df.columns]
 
+=======
+    return desc
+
+
+def country_aggregates(df, cols=None):
+    cols = cols or KEY_NUMERIC_COLUMNS
+    cols = [c for c in cols if c in df.columns]
+    if "country" not in df.columns:
+        return pd.DataFrame()
+>>>>>>> a6a30ff864d6cbe6d03322a4a5eeae6d203ff0e5
     agg = df.groupby("country")[cols].agg(["mean", "median", "std", "min", "max", "count"])
     return agg
 
 
+<<<<<<< HEAD
 def correlation_matrix(df: pd.DataFrame) -> Tuple[pd.DataFrame, go.Figure]:
     """
     Compute correlation matrix and generate interactive heatmap.
@@ -226,6 +264,47 @@ def detect_extreme_events(
     num = df.select_dtypes(include=[np.number])
     thresholds = {}
 
+=======
+def correlation_matrix(df):
+    num = df.select_dtypes(include=[np.number])
+    corr = num.corr(method="pearson")
+    # simple heatmap figure
+    fig, ax = plt.subplots(figsize=(10, 8))
+    im = ax.imshow(corr, interpolation="nearest")
+    ax.set_xticks(range(len(corr.columns)))
+    ax.set_xticklabels(corr.columns, rotation=90, fontsize=8)
+    ax.set_yticks(range(len(corr.index)))
+    ax.set_yticklabels(corr.index, fontsize=8)
+    fig.colorbar(im, ax=ax, fraction=0.03)
+    fig.suptitle("Correlation matrix (Pearson)")
+    fig.tight_layout()
+    return corr, fig
+
+
+def monthly_trends(df, cols=None):
+    if "date" not in df.columns:
+        return pd.DataFrame(), None
+    cols = cols or KEY_NUMERIC_COLUMNS
+    cols = [c for c in cols if c in df.columns]
+    tmp = df.copy()
+    tmp["month"] = tmp["date"].dt.to_period("M")
+    monthly = tmp.groupby("month")[cols].mean()
+    # plot sample temperature trend when present
+    fig = None
+    if "temperature_celsius" in monthly.columns:
+        fig, ax = plt.subplots(figsize=(10, 3))
+        ax.plot(monthly.index.to_timestamp(), monthly["temperature_celsius"])
+        ax.set_xlabel("Month")
+        ax.set_ylabel("Temperature (C)")
+        ax.set_title("Monthly Average Temperature (C)")
+        fig.tight_layout()
+    return monthly, fig
+
+
+def detect_extreme_events(df, temp_pct=0.95, wind_pct=0.95, precip_pct=0.95, vis_pct=0.05):
+    num = df.select_dtypes(include=[np.number])
+    thresholds = {}
+>>>>>>> a6a30ff864d6cbe6d03322a4a5eeae6d203ff0e5
     if "temperature_celsius" in num.columns:
         thresholds["high_temp"] = float(num["temperature_celsius"].quantile(temp_pct))
     if "wind_kph" in num.columns:
@@ -237,11 +316,16 @@ def detect_extreme_events(
 
     df_ext = df.copy()
     conds = []
+<<<<<<< HEAD
     event_type_mapping = {}
+=======
+    extreme_type_list = []
+>>>>>>> a6a30ff864d6cbe6d03322a4a5eeae6d203ff0e5
 
     if "high_temp" in thresholds:
         df_ext["extreme_high_temp"] = df_ext["temperature_celsius"] >= thresholds["high_temp"]
         conds.append("extreme_high_temp")
+<<<<<<< HEAD
         event_type_mapping["extreme_high_temp"] = "Heatwave"
 
     if "high_wind" in thresholds:
@@ -262,10 +346,26 @@ def detect_extreme_events(
     # Create extreme types list
     def list_extremes(row):
         types = [event_type_mapping[c] for c in conds if row[c]]
+=======
+    if "high_wind" in thresholds:
+        df_ext["extreme_high_wind"] = df_ext["wind_kph"] >= thresholds["high_wind"]
+        conds.append("extreme_high_wind")
+    if "heavy_precip" in thresholds:
+        df_ext["extreme_heavy_precip"] = df_ext["precip_mm"] >= thresholds["heavy_precip"]
+        conds.append("extreme_heavy_precip")
+    if "low_visibility" in thresholds:
+        df_ext["extreme_low_visibility"] = df_ext["visibility_km"] <= thresholds["low_visibility"]
+        conds.append("extreme_low_visibility")
+
+    # Add a column listing the types of extremes per row
+    def list_extremes(row):
+        types = [c.replace("extreme_", "").replace("_", " ").title() for c in conds if row[c]]
+>>>>>>> a6a30ff864d6cbe6d03322a4a5eeae6d203ff0e5
         return ", ".join(types) if types else None
 
     df_ext["extreme_types"] = df_ext.apply(list_extremes, axis=1)
 
+<<<<<<< HEAD
     # Add event color mapping
     def get_event_color(row):
         if pd.isna(row["extreme_types"]):
@@ -282,6 +382,9 @@ def detect_extreme_events(
 
     df_ext["event_color"] = df_ext.apply(get_event_color, axis=1)
 
+=======
+    # Flag overall extreme
+>>>>>>> a6a30ff864d6cbe6d03322a4a5eeae6d203ff0e5
     if conds:
         df_ext["is_extreme_event"] = df_ext[conds].any(axis=1)
     else:
@@ -289,16 +392,25 @@ def detect_extreme_events(
 
     ext_events = df_ext[df_ext["is_extreme_event"]].copy()
 
+<<<<<<< HEAD
     # Summary statistics
     summary = {}
     for c in conds:
         if "country" in ext_events.columns:
             summary[c] = ext_events.groupby("country")[c].sum().sort_values(ascending=False)
+=======
+    # Summary per country and type
+    summary = {}
+    for c in conds:
+        if "country" in ext_events.columns:
+            summary[c] = ext_events.groupby("country").size().sort_values(ascending=False)
+>>>>>>> a6a30ff864d6cbe6d03322a4a5eeae6d203ff0e5
         else:
             summary[c] = ext_events[c].sum()
 
     return thresholds, ext_events, summary
 
+<<<<<<< HEAD
 
 def region_comparisons(df: pd.DataFrame, metric: str = "temperature_celsius") -> Tuple[pd.DataFrame, Optional[go.Figure]]:
     """
@@ -972,3 +1084,20 @@ def generate_3d_chart(df: pd.DataFrame, x_metric: str = "humidity", y_metric: st
     )
 
     return fig
+=======
+def region_comparisons(df, metric="temperature_celsius"):
+    if metric not in df.columns:
+        return pd.DataFrame(), None
+    comp = df.groupby("country")[metric].agg(["mean", "median", "std", "min", "max", "count"]).sort_values("mean", ascending=False)
+    # create a bar figure for top 20
+    fig = None
+    top = comp.head(20)
+    if not top.empty:
+        fig, ax = plt.subplots(figsize=(10, 4))
+        ax.bar(range(len(top)), top["mean"])
+        ax.set_xticks(range(len(top)))
+        ax.set_xticklabels(top.index, rotation=90, fontsize=8)
+        ax.set_title(f"Top 20 countries by mean {metric}")
+        fig.tight_layout()
+    return comp, fig
+>>>>>>> a6a30ff864d6cbe6d03322a4a5eeae6d203ff0e5
