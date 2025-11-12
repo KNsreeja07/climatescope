@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -163,7 +162,6 @@ with st.sidebar:
     st.markdown("# FILTERS")
    
 
-    # Country Filter
     st.markdown("### 🌍 Country Selection")
     countries = sorted(df["country"].dropna().unique().tolist())
     selected_countries = st.multiselect(
@@ -508,8 +506,14 @@ elif metric_group == "Temperature Analysis":
             st.markdown("#### 📊 All Countries Comparison")
             comp, fig = region_comparisons(dff, metric="temperature_celsius")
             if fig:
-                fig.update_layout(height=600)
-                st.plotly_chart(fig, use_container_width=True)
+                 if hasattr(fig, "update_layout"):
+                     fig.update_layout(height=600)
+                     st.plotly_chart(fig, use_container_width=True)
+            else:
+                  fig.set_size_inches(10, 6)
+                  st.pyplot(fig, use_container_width=True)
+
+
 
     else:
         st.warning("Temperature data not available in the selected dataset.")
