@@ -140,7 +140,8 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Data Path Configuration
-DATA_PATH = "/data/GlobalWeatherRepository_cleaned.csv"
+BASE_DIR = Path(__file__).resolve().parent.parent
+DATA_PATH = BASE_DIR / "data" / "GlobalWeatherRepository_cleaned.csv"
 
 # Cache data loading
 @st.cache_data
