@@ -140,7 +140,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Data Path Configuration
-DATA_PATH = "../data/GlobalWeatherRepository_cleaned.csv"
+DATA_PATH = "/data/GlobalWeatherRepository_cleaned.csv"
 
 # Cache data loading
 @st.cache_data
